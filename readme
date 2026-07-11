@@ -1,0 +1,14 @@
+restart the server
+
+1->docker compose up -d --build
+
+or 
+
+2-> docker compose restart backend
+
+
+1) docker compose ps
+
+2)docker compose exec backend alembic revision --autogenerate -m "Initial tables"
+
+3) docker-compose exec backend alembic upgrade head
