@@ -19,13 +19,18 @@ def create_access_token(data: dict) -> str:
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
+#decode the user's email
 def decode_token(token : str):
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode( # gets the token, secret_key and algorithm form config
+            token, 
+            settings.SECRET_KEY, 
+            algorithms=[settings.ALGORITHM]
+            )
         email: str = payload.get("sub")
         if email is None:
             return None
-        return email
+        return email # return the email
     except JWTError:
         return None
     

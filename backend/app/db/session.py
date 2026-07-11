@@ -1,10 +1,10 @@
 # connect to databaset to perform operations
 from sqlalchemy import create_engine
-from sqlalchemy import sessionmaker
+from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
-engine = create_engine(settings.DATABASE_URL,pool_pre_ping=True)
-SessionLocal = sessionmaker(
+engine = create_engine(settings.DATABASE_URL,pool_pre_ping=True) #from here to 
+SessionLocal = sessionmaker( # here
     autocommit = False,
     autoflush = False,
     bind = engine

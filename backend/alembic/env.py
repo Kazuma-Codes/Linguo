@@ -1,4 +1,11 @@
 from logging.config import fileConfig
+import sys 
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from app.core.config import settings
+from app.db.base import Base
+from app.db.models import User,ChatRoom,Message
+target_metadata = Base.metadata
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -18,7 +25,9 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = None
+
+
+#target_metadata = None
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -57,8 +66,11 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    configuration = config.get_section(config.config_ini_section, {})
+    configuration["sqlalchemy.url"] = settings.DATABASE_URL
+
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
