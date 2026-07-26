@@ -11,4 +11,4 @@ redis_client = redis.from_url(settings.REDIS_URL,decode_responses = True)
 
 # used for real time chat , notification , live updates
 # used for subscribe, publish
-pubsub_client = redis.from_url(settings.REDIS_URL,decode_response  = True)
+pubsub_client = redis.from_url(settings.REDIS_URL, decode_responses=True)

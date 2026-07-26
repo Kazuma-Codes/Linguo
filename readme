@@ -12,3 +12,81 @@ or
 2)docker compose exec backend alembic revision --autogenerate -m "Initial tables"
 
 3) docker-compose exec backend alembic upgrade head
+4) docker compose down
+
+redis -> ensures that everyone on the chatroom gets the same message regardless of which server they are on like if a person sends message on container A then container B and C also gets the same message
+
+
+# to run the database
+
+-> docker compose exec db psql -U user -d translate_app
+
+# enter container 
+-> docker compose exec backend bash
+
+# recreate containers
+docker compose down
+docker compose up --build
+
+# creating the frontend with zustand and tailwind css
+
+npx create-next-app@14 frontend --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
+>> cd frontend
+>> npm install zustand
+
+#stop a docker
+-> docker compose down
+
+# start the frontend
+-> cd frontend
+-> npm run dev
+
+
+# install and setup expo for android
+
+-> npx create-expo-app@latest mobile
+-> cd mobile
+-> npx expo install expo-secure-store react-native-screens react-native-safe-area-context @react-navigation/native @react-navigation/native-stack zustand
+
+
+# llm models 
+-> qwen for translation 
+
+# how to load llm 
+-> ollama run qwen2.5:3b
+
+# how to run the project 
+-> ollama run qwen2.5:3b
+1) docker compose up -d --build
+
+Apply database updates (only needed once):
+
+2) docker compose exec backend alembic revision --autogenerate -m "setup_database"
+3) docker compose exec backend alembic upgrade head
+
+Start the Web Frontend
+on another teminal
+4) cd frontend
+5) npm run dev
+
+6) Open your browser and go to http://localhost:3000
+
+Start the Mobile App
+on another teminal
+7) cd mobile
+8) npx expo start
+
+Press a to launch the Android Emulator, or scan the QR code using the Expo Go app on your phone.
+
+9)
+10)
+11)
+12)
+13)
+14)
+15)
+16)
+17)
+18)
+19)
+20)

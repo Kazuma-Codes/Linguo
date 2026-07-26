@@ -4,7 +4,9 @@ import asyncio
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from sqlalchemy.orm import Session
-
+from arq import create_pool
+from arq.connections import RedisSettings
+from app.core.config import settings
 from app.api.deps import get_db
 from app.db.models import User, ChatRoom, Message
 from app.core.security import decode_token
@@ -52,9 +54,7 @@ manager = ConnectionManager()
 # Listen for Redis Pub/Sub messages for a specific room
 # Whenever a message is published to Redis, broadcast it
 # to all WebSocket clients connected to that room.
-async def redis_listener(room_id: str):
-
-    pubsub = pubsub_client.pubsub()
+async def redis_listener(room_id: str, pubsub):
 
     # Subscribe to the room's Redis channel
     await pubsub.subscribe(f"chat:{room_id}")
@@ -82,7 +82,6 @@ async def websocket_endpoint(
     token: str,
     db: Session = Depends(get_db),
 ):
-    print("connected")
     # Extract email from JWT token
     email = decode_token(token)
 
@@ -113,7 +112,10 @@ async def websocket_endpoint(
     logger.info(f"Connected: {user.email}")
 
     # Start background Redis listener for this room
-    listener_task = asyncio.create_task(redis_listener(room_id))
+    pubsub = pubsub_client.pubsub()
+    listener_task = asyncio.create_task(redis_listener(room_id, pubsub))
+
+    redis_pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
 
     try:
         while True:
@@ -122,36 +124,86 @@ async def websocket_endpoint(
             data = await websocket.receive_text()
             logger.info(f"Received: {data}")
 
-            # Save message in database
-            msg = Message(
-                room_id=room.id,
-                sender_id=user.id,
-                original_text=data,
-                detected_lang="en",
-            )
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                continue
 
-            db.add(msg)
-            db.commit()
-            db.refresh(msg)
+            msg_type = payload.get("type")
 
-            # Message payload that will be sent through Redis
-            payload = {
-                "id": str(msg.id),
-                "sender_email": user.email,
-                "text": data,
-                "translated_text": None,
-            }
+            if msg_type == "send_draft":
+                text = payload.get("text", "")
+                if not text:
+                    continue
 
-            # Publish message to Redis channel
-            await redis_client.publish(
-                f"chat:{room_id}",
-                json.dumps(payload),
-            )
-            logger.info(f"Published: {payload}")
+                # Save message in database
+                msg = Message(
+                    room_id=room.id,
+                    sender_id=user.id,
+                    original_text=text,
+                    detected_lang="en",
+                    status="draft"
+                )
+
+                db.add(msg)
+                db.commit()
+                # offload to translation worker
+                await redis_pool.enqueue_job(
+                    'process_translation',
+                    str(msg.id),
+                    room.target_lang
+                )
+                db.refresh(msg)
+
+                # Message payload that will be sent through Redis
+                pub_payload = {
+                    "type": "draft_ready",
+                    "id": str(msg.id),
+                    "sender_email": user.email,
+                    "text": text,
+                    "translated_text": None,
+                }
+
+                # Publish message to Redis channel
+                await redis_client.publish(
+                    f"chat:{room_id}",
+                    json.dumps(pub_payload),
+                )
+                logger.info(f"Published: {pub_payload}")
+
+            elif msg_type == "confirm_draft":
+                msg_id = payload.get("id")
+                edited_text = payload.get("edited_text")
+                if not msg_id:
+                    continue
+
+                msg = db.query(Message).filter(Message.id == uuid.UUID(msg_id), Message.room_id == room.id).first()
+                if msg and msg.sender_id == user.id:
+                    if edited_text is not None:
+                        msg.translated_text = edited_text
+                    msg.status = "final"
+                    db.commit()
+
+                    pub_payload = {
+                        "type": "message_finalized",
+                        "id": str(msg.id),
+                        "sender_email": user.email,
+                        "text": msg.original_text,
+                        "translated_text": msg.translated_text,
+                        "detected_lang": msg.detected_lang,
+                        "cultural_footnotes": msg.cultural_footnotes,
+                    }
+                    await redis_client.publish(
+                        f"chat:{room_id}",
+                        json.dumps(pub_payload),
+                    )
+                    logger.info(f"Published confirmed: {pub_payload}")
     except WebSocketDisconnect:
 
         # Remove disconnected client
         manager.disconnect(websocket, room_id)
 
         # Stop Redis listener task
+        await pubsub.unsubscribe(f"chat:{room_id}")
+        await pubsub.close()
         listener_task.cancel()
