@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Translator",
+    "slug": "translator",
+    "version": "1.0.0",
+    "plugins": [
+      ["expo-build-properties", {"android": {"minSdkVersion": 24}}],
+      ["react-native-webrtc", {"microphonePermission": "Allow mic"}]
+    ]
+  }
+}
