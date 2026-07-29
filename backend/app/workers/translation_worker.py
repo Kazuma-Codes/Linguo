@@ -27,13 +27,14 @@ async def process_translation(ctx, message_id: str, target_lang: str):
         if not msg: return
         msg.detected_lang = detect_language(msg.original_text)
         msg.translated_text = translate_text(msg.original_text, msg.detected_lang, target_lang) if msg.detected_lang != target_lang else msg.original_text
-        msg.cultural_footnotes = await get_cultural_context(msg.original_text, msg.translated_text, target_lang)
+        cultural = await get_cultural_context(msg.original_text, msg.translated_text, target_lang)
+        msg.cultural_footnotes = json.dumps(cultural) if cultural else None
         db.commit()
         sender = db.query(User).filter(User.id == msg.sender_id).first()
         await redis_client.publish(f"chat:{msg.room_id}", json.dumps({
             "id": str(msg.id), "type": "draft_ready", "sender_email": sender.email,
             "original_text": msg.original_text, "translated_text": msg.translated_text,
-            "cultural_footnotes": msg.cultural_footnotes, "detected_lang": msg.detected_lang, "status": "draft"
+            "cultural_footnotes": json.loads(msg.cultural_footnotes) if msg.cultural_footnotes else None, "detected_lang": msg.detected_lang, "status": "draft"
         }))
     except Exception as e: logger.error(e)
     finally: db.close()
@@ -54,7 +55,8 @@ async def process_voice(ctx, message_id: str):
         room = db.query(ChatRoom).filter(ChatRoom.id == msg.room_id).first()
         target = room.target_lang if room else "es"
         msg.translated_text = translate_text(msg.original_text, msg.detected_lang, target) if msg.detected_lang != target else msg.original_text
-        msg.cultural_footnotes = await get_cultural_context(msg.original_text, msg.translated_text, target)
+        cultural = await get_cultural_context(msg.original_text, msg.translated_text, target)
+        msg.cultural_footnotes = json.dumps(cultural) if cultural else None
         
         tts_fn = f"{uuid.uuid4()}.wav"
         tts_path = f"/tmp/{tts_fn}"
@@ -68,7 +70,7 @@ async def process_voice(ctx, message_id: str):
             "id": str(msg.id), "type": "voice_finalized", "sender_email": sender.email,
             "original_text": msg.original_text, "translated_text": msg.translated_text,
             "audio_url": msg.audio_url, "tts_url": msg.tts_url,
-            "cultural_footnotes": msg.cultural_footnotes, "detected_lang": msg.detected_lang, "status": "final"
+            "cultural_footnotes": json.loads(msg.cultural_footnotes) if msg.cultural_footnotes else None, "detected_lang": msg.detected_lang, "status": "final"
         }))
     except Exception as e: logger.error(e)
     finally: db.close()

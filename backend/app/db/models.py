@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.base import Base
 
 class User(Base):
@@ -24,7 +24,7 @@ class ChatRoom(Base):
     source_lang = Column(String, default="en")
     target_lang = Column(String, default="es")
     creator_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     creator = relationship("User", foreign_keys=[creator_id], back_populates="rooms_created")
     messages = relationship("Message", back_populates="room", cascade="all, delete-orphan")
@@ -43,6 +43,6 @@ class Message(Base):
     status = Column(String, default="draft")
     cultural_footnotes = Column(Text, nullable=True)
     tts_url = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     room = relationship("ChatRoom", back_populates="messages")

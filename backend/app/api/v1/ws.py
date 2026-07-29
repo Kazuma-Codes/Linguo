@@ -2,6 +2,7 @@ import json
 import uuid
 import asyncio
 import logging
+from functools import partial
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from sqlalchemy.orm import Session
 from arq import create_pool
@@ -11,6 +12,7 @@ from app.api.deps import get_db
 from app.db.models import User, ChatRoom, Message
 from app.core.security import decode_token
 from app.core.redis import redis_client, pubsub_client
+from app.db.session import SessionLocal
 
 router = APIRouter()
 
@@ -73,6 +75,63 @@ async def redis_listener(room_id: str, pubsub):
             await manager.broadcast_local(data, room_id)
 
 
+def _db_get_user(email: str) -> User | None:
+    """Run synchronous DB query in a thread pool."""
+    db = SessionLocal()
+    try:
+        return db.query(User).filter(User.email == email).first()
+    finally:
+        db.close()
+
+
+def _db_get_room(room_id: str) -> ChatRoom | None:
+    """Run synchronous DB query in a thread pool."""
+    db = SessionLocal()
+    try:
+        return db.query(ChatRoom).filter(ChatRoom.id == uuid.UUID(room_id)).first()
+    finally:
+        db.close()
+
+
+def _db_save_message(room_id, user_id, text) -> Message:
+    """Save a message to the database (runs in thread pool)."""
+    db = SessionLocal()
+    try:
+        msg = Message(
+            room_id=room_id,
+            sender_id=user_id,
+            original_text=text,
+            detected_lang="en",
+            status="draft"
+        )
+        db.add(msg)
+        db.commit()
+        db.refresh(msg)
+        return msg
+    finally:
+        db.close()
+
+
+def _db_confirm_draft(msg_id: str, room_id, user_id, edited_text: str | None):
+    """Confirm a draft message (runs in thread pool)."""
+    db = SessionLocal()
+    try:
+        msg = db.query(Message).filter(
+            Message.id == uuid.UUID(msg_id),
+            Message.room_id == room_id
+        ).first()
+        if msg and msg.sender_id == user_id:
+            if edited_text is not None:
+                msg.translated_text = edited_text
+            msg.status = "final"
+            db.commit()
+            db.refresh(msg)
+            return msg
+        return None
+    finally:
+        db.close()
+
+
 # WebSocket endpoint:
 # ws://localhost:8000/api/v1/ws/chat/{room_id}?token={jwt}
 @router.websocket("/ws/chat/{room_id}")
@@ -80,7 +139,6 @@ async def websocket_endpoint(
     websocket: WebSocket,
     room_id: str,
     token: str,
-    db: Session = Depends(get_db),
 ):
     # Extract email from JWT token
     email = decode_token(token)
@@ -89,19 +147,15 @@ async def websocket_endpoint(
         await websocket.close(code=1008)
         return
 
-    # Fetch authenticated user
-    user = db.query(User).filter(User.email == email).first()
+    # Fetch authenticated user (in thread pool to avoid blocking)
+    user = await asyncio.to_thread(_db_get_user, email)
 
     if not user:
         await websocket.close(code=1008)
         return
 
-    # Verify that the room exists
-    room = (
-        db.query(ChatRoom)
-        .filter(ChatRoom.id == uuid.UUID(room_id))
-        .first()
-    )
+    # Verify that the room exists (in thread pool)
+    room = await asyncio.to_thread(_db_get_room, room_id)
 
     if not room:
         await websocket.close(code=1011)
@@ -136,24 +190,17 @@ async def websocket_endpoint(
                 if not text:
                     continue
 
-                # Save message in database
-                msg = Message(
-                    room_id=room.id,
-                    sender_id=user.id,
-                    original_text=text,
-                    detected_lang="en",
-                    status="draft"
+                # Save message in database (in thread pool)
+                msg = await asyncio.to_thread(
+                    _db_save_message, room.id, user.id, text
                 )
 
-                db.add(msg)
-                db.commit()
                 # offload to translation worker
                 await redis_pool.enqueue_job(
                     'process_translation',
                     str(msg.id),
                     room.target_lang
                 )
-                db.refresh(msg)
 
                 # Message payload that will be sent through Redis
                 pub_payload = {
@@ -177,13 +224,12 @@ async def websocket_endpoint(
                 if not msg_id:
                     continue
 
-                msg = db.query(Message).filter(Message.id == uuid.UUID(msg_id), Message.room_id == room.id).first()
-                if msg and msg.sender_id == user.id:
-                    if edited_text is not None:
-                        msg.translated_text = edited_text
-                    msg.status = "final"
-                    db.commit()
+                # Confirm draft in database (in thread pool)
+                msg = await asyncio.to_thread(
+                    _db_confirm_draft, msg_id, room.id, user.id, edited_text
+                )
 
+                if msg:
                     pub_payload = {
                         "type": "message_finalized",
                         "id": str(msg.id),
