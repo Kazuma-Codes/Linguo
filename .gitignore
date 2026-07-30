@@ -1,15 +1,35 @@
+# Dependencies
+.venv/
+venv/
+__pycache__/
+
 # Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 *.egg
+*.pyc
+*.pyo
+*.pyd
 dist/
 build/
 
+
+*.egg-info/
 # Environment
 .env
 .env.*
 !.env.example
+.env.local
+*.env.*
+
+# Logs
+*.log
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
 
 # IDE
 .vscode/
@@ -19,3 +39,41 @@ build/
 postgres_data/
 redis_data/
 minio_data/
+
+
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+
+
+
+# Frontend build artifacts (if applicable)
+node_modules/
+.next/
+.nuxt/
+dist/
+build/
+
+# Compressed files
+*.zip
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.gz
+*.rar
+*.7z
+```

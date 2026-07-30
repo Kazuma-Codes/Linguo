@@ -1,4 +1,11 @@
-# calls the local llm to analyze curtural nuances 
+"""Cultural context analysis using the local Ollama LLM.
+
+When a message is translated, this module generates cultural footnotes that
+explain humor, idioms, and etiquette differences between the source and
+target languages. Uses the same model as translation (Qwen) to avoid
+GPU memory swapping overhead.
+"""
+
 import json
 import logging
 
@@ -8,14 +15,21 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Default fallback returned when the LLM call fails — prevents null-footnote crashes.
 EMPTY_CONTEXT = {"humor_explanation": None, "idiom_breakdown": None, "etiquette_warning": None}
 
 
 async def get_cultural_context(original: str, translated: str, target: str) -> dict:
-    """Analyze cultural nuances using the primary model (Qwen).
+    """Analyze cultural nuances of a translated message using the LLM.
 
-    Uses the same model as translation so it stays loaded in VRAM
-    permanently — no swapping, no lag.
+    Args:
+        original: The original text before translation.
+        translated: The translated text.
+        target: The target language code (e.g. 'es', 'ja').
+
+    Returns:
+        A dict with keys: humor_explanation, idiom_breakdown, etiquette_warning.
+        Values are strings or None. Returns EMPTY_CONTEXT on failure.
     """
     prompt = f"""You are a cultural intelligence expert. Analyze:
 Original: {original}

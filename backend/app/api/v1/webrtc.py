@@ -1,4 +1,17 @@
-#live audio call or translation
+"""WebRTC live voice interpretation endpoint.
+
+Endpoint:
+- WS /ws/live/{room_id}: Live audio stream with real-time translation.
+
+This is an optional router — only loaded if aiortc, webrtcvad, and av are installed.
+
+Flow:
+  1. Client opens a WebSocket and sends an SDP offer.
+  2. Server creates an RTCPeerConnection, adds a LiveAudioProcessor track.
+  3. Audio is resampled to 16kHz mono, passed through VAD (Voice Activity Detection).
+  4. When speech ends, the buffered PCM is converted to WAV and uploaded to MinIO.
+  5. A 'process_live_voice' job is enqueued for transcription + translation.
+"""
 
 import io
 import logging
@@ -18,18 +31,21 @@ from app.core.storage import minio_client, ensure_bucket
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# Track all active peer connections for cleanup
 pcs: set[RTCPeerConnection] = set()
 
-SAMPLE_RATE = 16000
-FRAME_MS = 20  # webrtcvad only accepts 10, 20, or 30 ms frames
-BYTES_PER_SAMPLE = 2  # 16-bit PCM
-FRAME_BYTES = int(SAMPLE_RATE * (FRAME_MS / 1000) * BYTES_PER_SAMPLE)  # 640 bytes
+# Audio processing constants
+SAMPLE_RATE = 16000                                    # Standard for speech recognition
+FRAME_MS = 20                                         # webrtcvad accepts 10, 20, or 30 ms frames
+BYTES_PER_SAMPLE = 2                                  # 16-bit PCM
+FRAME_BYTES = int(SAMPLE_RATE * (FRAME_MS / 1000) * BYTES_PER_SAMPLE)  # 640 bytes per frame
 
+# Shared arq pool for enqueuing live voice jobs
 _arq_pool = None
 
 
 async def get_arq_pool():
-    """Reuse a single arq pool instead of creating one per audio chunk."""
+    """Return a shared arq connection pool (created once, reused for all job dispatches)."""
     global _arq_pool
     if _arq_pool is None:
         _arq_pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
@@ -37,7 +53,7 @@ async def get_arq_pool():
 
 
 def pcm_to_wav_bytes(pcm: bytes) -> bytes:
-    """Wrap raw PCM in a proper WAV header using the stdlib, instead of hand-built bytes."""
+    """Wrap raw 16kHz mono PCM bytes in a proper WAV header using the stdlib."""
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wav_file:
         wav_file.setnchannels(1)
@@ -46,23 +62,32 @@ def pcm_to_wav_bytes(pcm: bytes) -> bytes:
         wav_file.writeframes(pcm)
     return buf.getvalue()
 
-# the audio pipeline
+
 class LiveAudioProcessor(MediaStreamTrack):
+    """Custom MediaStreamTrack that processes incoming audio in real-time.
+
+    - Resamples incoming audio to 16kHz mono (required by VAD and Whisper).
+    - Uses WebRTC VAD to detect speech segments.
+    - When speech ends, uploads the buffered PCM as a WAV file to MinIO.
+    """
+
     kind = "audio"
 
     def __init__(self, track, room_id: str):
         super().__init__()
         self.track = track
         self.room_id = room_id
-        self.vad = webrtcvad.Vad(2)
+        self.vad = webrtcvad.Vad(2)       # Aggressiveness: 0 (most lenient) to 3 (most aggressive)
         self.buffer = bytearray()
         self.speech_active = False
-        # Created once, not on every recv() call
+        # Create the resampler once, not on every recv() call
         self.resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
 
     async def recv(self):
+        """Called by aiortc for each incoming audio frame."""
         frame = await self.track.recv()
 
+        # Resample to 16kHz mono and process each output frame
         for resampled in self.resampler.resample(frame):
             pcm = resampled.to_ndarray().tobytes()
             await self._process_pcm(pcm)
@@ -70,10 +95,11 @@ class LiveAudioProcessor(MediaStreamTrack):
         return frame
 
     async def _process_pcm(self, pcm: bytes):
+        """Process PCM data in frame-sized chunks through the VAD."""
         for i in range(0, len(pcm), FRAME_BYTES):
             chunk = pcm[i:i + FRAME_BYTES]
             if len(chunk) < FRAME_BYTES:
-                break  # partial frame, VAD needs an exact frame size
+                break  # Partial frame — VAD requires exact frame size
 
             is_speech = self._is_speech(chunk)
 
@@ -81,9 +107,11 @@ class LiveAudioProcessor(MediaStreamTrack):
                 self.speech_active = True
                 self.buffer.extend(chunk)
             elif self.speech_active:
+                # Speech ended — flush the buffered segment
                 await self._flush_segment()
 
     def _is_speech(self, chunk: bytes) -> bool:
+        """Check if an audio chunk contains speech. Returns False on VAD errors."""
         try:
             return self.vad.is_speech(chunk, SAMPLE_RATE)
         except Exception:
@@ -91,7 +119,7 @@ class LiveAudioProcessor(MediaStreamTrack):
             return False
 
     async def _flush_segment(self):
-        """Upload the buffered speech segment and enqueue it for processing."""
+        """Upload the buffered speech segment to MinIO and enqueue for processing."""
         audio_bytes = bytes(self.buffer)
         self.buffer.clear()
         self.speech_active = False
@@ -113,6 +141,11 @@ class LiveAudioProcessor(MediaStreamTrack):
 
 @router.websocket("/ws/live/{room_id}")
 async def webrtc_signaling(ws: WebSocket, room_id: str):
+    """WebRTC signaling endpoint — handles SDP offer/answer exchange.
+
+    The client sends an SDP offer via WebSocket, and the server responds
+    with an SDP answer. Audio tracks are processed by LiveAudioProcessor.
+    """
     await ws.accept()
 
     pc = RTCPeerConnection()
@@ -120,11 +153,13 @@ async def webrtc_signaling(ws: WebSocket, room_id: str):
 
     @pc.on("track")
     def on_track(track):
+        """When the remote peer adds a track, attach our audio processor."""
         if track.kind == "audio":
             pc.addTrack(LiveAudioProcessor(track, room_id))
 
     @pc.on("connectionstatechange")
     async def on_connection_state_change():
+        """Clean up when the peer connection closes or fails."""
         if pc.connectionState in ("failed", "closed", "disconnected"):
             await pc.close()
             pcs.discard(pc)
