@@ -57,7 +57,8 @@ npx create-next-app@14 frontend --typescript --tailwind --eslint --app --src-dir
 
 # how to run the project 
 -> ollama run qwen2.5:3b
-1) docker compose up -d --build
+1) docker compose up -d --build 
+1) or docker compose start
 
 Apply database updates (only needed once):
 
