@@ -1,4 +1,5 @@
-from fastapi import APIRouter
+import os
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
 import json, httpx
@@ -11,8 +12,16 @@ class PushSub(BaseModel):
 
 @router.post("/web")
 async def web_push(sub: PushSub, message: str):
+    vapid_key = os.environ.get("VAPID_PRIVATE_KEY")
+    if not vapid_key:
+        raise HTTPException(status_code=503, detail="Push notifications not configured (VAPID_PRIVATE_KEY not set)")
     try:
-        webpush({"endpoint": sub.endpoint, "keys": sub.keys}, json.dumps({"title": "Live Call", "body": message}), vapid_private_key="YOUR_KEY", vapid_claims={"sub": "mailto:a@b.com"})
+        webpush(
+            {"endpoint": sub.endpoint, "keys": sub.keys},
+            json.dumps({"title": "Live Call", "body": message}),
+            vapid_private_key=vapid_key,
+            vapid_claims={"sub": "mailto:a@b.com"}
+        )
         return {"status": "sent"}
     except Exception as e: return {"error": str(e)}
 

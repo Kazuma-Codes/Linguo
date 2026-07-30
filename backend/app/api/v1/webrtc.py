@@ -1,61 +1,144 @@
-import json, logging, asyncio, tempfile, os, uuid
+#live audio call or translation
+
+import io
+import logging
+import uuid
+import wave
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack
-import av, webrtcvad
-from app.core.redis import redis_client
+import av
+import webrtcvad
 from arq import create_pool
 from arq.connections import RedisSettings
+
 from app.core.config import settings
 from app.core.storage import minio_client, ensure_bucket
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-pcs = set()
 
+pcs: set[RTCPeerConnection] = set()
+
+SAMPLE_RATE = 16000
+FRAME_MS = 20  # webrtcvad only accepts 10, 20, or 30 ms frames
+BYTES_PER_SAMPLE = 2  # 16-bit PCM
+FRAME_BYTES = int(SAMPLE_RATE * (FRAME_MS / 1000) * BYTES_PER_SAMPLE)  # 640 bytes
+
+_arq_pool = None
+
+
+async def get_arq_pool():
+    """Reuse a single arq pool instead of creating one per audio chunk."""
+    global _arq_pool
+    if _arq_pool is None:
+        _arq_pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
+    return _arq_pool
+
+
+def pcm_to_wav_bytes(pcm: bytes) -> bytes:
+    """Wrap raw PCM in a proper WAV header using the stdlib, instead of hand-built bytes."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(BYTES_PER_SAMPLE)
+        wav_file.setframerate(SAMPLE_RATE)
+        wav_file.writeframes(pcm)
+    return buf.getvalue()
+
+# the audio pipeline
 class LiveAudioProcessor(MediaStreamTrack):
     kind = "audio"
-    def __init__(self, track, room_id):
+
+    def __init__(self, track, room_id: str):
         super().__init__()
-        self.track = track; self.room_id = room_id
-        self.vad = webrtcvad.Vad(2); self.buffer = bytearray(); self.speech_active = False
+        self.track = track
+        self.room_id = room_id
+        self.vad = webrtcvad.Vad(2)
+        self.buffer = bytearray()
+        self.speech_active = False
+        # Created once, not on every recv() call
+        self.resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
 
     async def recv(self):
         frame = await self.track.recv()
-        resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
-        for r_frame in resampler.resample(frame):
-            pcm = r_frame.to_ndarray().tobytes()
-            for i in range(0, len(pcm), 480):
-                chunk = pcm[i:i+480]
-                if len(chunk) < 480: break
-                try: is_speech = self.vad.is_speech(chunk, 16000)
-                except: is_speech = False
-                if is_speech: self.speech_active = True; self.buffer.extend(chunk)
-                elif self.speech_active:
-                    await self.process(self.buffer); self.buffer.clear(); self.speech_active = False
+
+        for resampled in self.resampler.resample(frame):
+            pcm = resampled.to_ndarray().tobytes()
+            await self._process_pcm(pcm)
+
         return frame
 
-    async def process(self, audio_bytes):
+    async def _process_pcm(self, pcm: bytes):
+        for i in range(0, len(pcm), FRAME_BYTES):
+            chunk = pcm[i:i + FRAME_BYTES]
+            if len(chunk) < FRAME_BYTES:
+                break  # partial frame, VAD needs an exact frame size
+
+            is_speech = self._is_speech(chunk)
+
+            if is_speech:
+                self.speech_active = True
+                self.buffer.extend(chunk)
+            elif self.speech_active:
+                await self._flush_segment()
+
+    def _is_speech(self, chunk: bytes) -> bool:
+        try:
+            return self.vad.is_speech(chunk, SAMPLE_RATE)
+        except Exception:
+            logger.exception("VAD failed on audio chunk for room %s", self.room_id)
+            return False
+
+    async def _flush_segment(self):
+        """Upload the buffered speech segment and enqueue it for processing."""
+        audio_bytes = bytes(self.buffer)
+        self.buffer.clear()
+        self.speech_active = False
+
         ensure_bucket("live-audio")
-        obj_name = f"{uuid.uuid4()}.wav"
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-            f.write(b'RIFF' + (len(audio_bytes)+36).to_bytes(4, 'little') + b'WAVEfmt ' + (16).to_bytes(4, 'little') + (1).to_bytes(2, 'little')*2 + (16000).to_bytes(4, 'little') + (32000).to_bytes(4, 'little') + (2).to_bytes(2, 'little') + (16).to_bytes(2, 'little') + b'data' + len(audio_bytes).to_bytes(4, 'little') + audio_bytes)
-            minio_client.fput_object("live-audio", obj_name, f.name)
-        os.unlink(f.name)
-        pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
-        await pool.enqueue_job('process_live_voice', f"live-audio/{obj_name}", self.room_id)
+        object_name = f"{uuid.uuid4()}.wav"
+        wav_bytes = pcm_to_wav_bytes(audio_bytes)
+
+        minio_client.put_object(
+            "live-audio",
+            object_name,
+            io.BytesIO(wav_bytes),
+            length=len(wav_bytes),
+        )
+
+        pool = await get_arq_pool()
+        await pool.enqueue_job("process_live_voice", f"live-audio/{object_name}", self.room_id)
+
 
 @router.websocket("/ws/live/{room_id}")
-async def webrtc_sig(ws: WebSocket, room_id: str):
+async def webrtc_signaling(ws: WebSocket, room_id: str):
     await ws.accept()
-    pc = RTCPeerConnection(); pcs.add(pc)
+
+    pc = RTCPeerConnection()
+    pcs.add(pc)
+
     @pc.on("track")
     def on_track(track):
-        if track.kind == "audio": pc.addTrack(LiveAudioProcessor(track, room_id))
+        if track.kind == "audio":
+            pc.addTrack(LiveAudioProcessor(track, room_id))
+
+    @pc.on("connectionstatechange")
+    async def on_connection_state_change():
+        if pc.connectionState in ("failed", "closed", "disconnected"):
+            await pc.close()
+            pcs.discard(pc)
+
     try:
         while True:
             msg = await ws.receive_json()
             if msg["type"] == "offer":
-                await pc.setRemoteDescription(RTCSessionDescription(sdp=msg["sdp"], type="offer"))
-                ans = await pc.createAnswer(); await pc.setLocalDescription(ans)
+                await pc.setRemoteDescription(
+                    RTCSessionDescription(sdp=msg["sdp"], type="offer")
+                )
+                answer = await pc.createAnswer()
+                await pc.setLocalDescription(answer)
                 await ws.send_json({"type": "answer", "sdp": pc.localDescription.sdp})
-    except WebSocketDisconnect: await pc.close(); pcs.discard(pc)
+    except WebSocketDisconnect:
+        await pc.close()
+        pcs.discard(pc)

@@ -34,7 +34,15 @@ export default function Home() {
       }
       // Always call login to receive a valid JWT access token
       const res = await login(email, password);
-      const userData = await getMe(res.access_token);
+      let userData;
+      try {
+        userData = await getMe(res.access_token);
+      } catch (meErr) {
+        console.error('Failed to fetch user profile:', meErr);
+        setError('Login succeeded but failed to load profile. Please try again.');
+        setIsLoading(false);
+        return;
+      }
       setAuth(res.access_token, userData);
     } catch (err) {
       setError((err as Error).message);

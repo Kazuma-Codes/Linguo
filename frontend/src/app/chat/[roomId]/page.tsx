@@ -75,7 +75,8 @@ export default function ChatRoomPage() {
     }
     connect(roomId, token, user.email);
     return () => disconnect();
-  }, [roomId, hasHydrated, token, user, connect, disconnect, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, hasHydrated, token]);
 
   // Auto-scroll to the latest message/draft.
   useEffect(() => {
