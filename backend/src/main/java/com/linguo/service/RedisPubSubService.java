@@ -60,7 +60,12 @@ public class RedisPubSubService {
             for (WebSocketSession session : sessions) {
                 if (session.isOpen()) {
                     try {
-                        session.sendMessage(new TextMessage(payload));
+                        // WebSocketSession.sendMessage is NOT thread-safe; synchronize
+                        // to avoid corruption when Redis listener and handler threads
+                        // send concurrently.
+                        synchronized (session) {
+                            session.sendMessage(new TextMessage(payload));
+                        }
                     } catch (IOException e) {
                         log.warn("Failed to send message to session {}: {}", session.getId(), e.getMessage());
                     }

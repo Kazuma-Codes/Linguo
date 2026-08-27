@@ -13,6 +13,7 @@ import com.linguo.repository.ChatRoomRepository;
 import com.linguo.repository.MessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class ChatService {
     private final LanguageDetectionService languageDetectionService;
     private final RedisPubSubService redisPubSubService;
     private final ObjectMapper objectMapper;
+    private final ChatService self;
 
     public ChatService(MessageRepository messageRepository,
                        ChatRoomRepository roomRepository,
@@ -40,7 +42,8 @@ public class ChatService {
                        TranslationService translationService,
                        LanguageDetectionService languageDetectionService,
                        RedisPubSubService redisPubSubService,
-                       ObjectMapper objectMapper) {
+                       ObjectMapper objectMapper,
+                       @Lazy ChatService self) {
         this.messageRepository = messageRepository;
         this.roomRepository = roomRepository;
         this.participantRepository = participantRepository;
@@ -48,6 +51,7 @@ public class ChatService {
         this.languageDetectionService = languageDetectionService;
         this.redisPubSubService = redisPubSubService;
         this.objectMapper = objectMapper;
+        this.self = self;
     }
 
     @Transactional
@@ -85,8 +89,8 @@ public class ChatService {
 
         redisPubSubService.publish(roomIdStr, immediateDraft);
 
-        // Trigger background translation on virtual thread
-        processTranslationAsync(msg.getId());
+        // Trigger background translation via the Spring proxy so @Async works
+        self.processTranslationAsync(msg.getId());
     }
 
     @Async
