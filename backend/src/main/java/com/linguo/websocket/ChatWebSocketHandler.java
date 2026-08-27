@@ -138,7 +138,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
-        log.warn("WebSocket transport error for session {}: {}", session.getId(), exception.getMessage());
+        log.error(
+                "WebSocket transport error for session {}",
+                session.getId(),
+                exception
+        );
     }
 
     private String extractRoomIdFromPath(String path) {
