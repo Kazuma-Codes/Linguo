@@ -41,7 +41,8 @@ public class DataSourceConfig {
                 String path = uri.getPath();
                 String userInfo = uri.getUserInfo();
 
-                String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + path;
+                String query = uri.getQuery();
+                String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + path + (query != null && !query.isBlank() ? "?" + query : "");
                 config.setJdbcUrl(jdbcUrl);
 
                 if (userInfo != null && userInfo.contains(":")) {

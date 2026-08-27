@@ -34,6 +34,16 @@ public class RedisConfig {
                         config.setPassword(parts[0]);
                     }
                 }
+
+                boolean isSsl = "rediss".equalsIgnoreCase(uri.getScheme()) || redisUrl.startsWith("rediss://");
+                if (isSsl) {
+                    org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration clientConfig =
+                            org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration.builder()
+                                    .useSsl()
+                                    .build();
+                    return new LettuceConnectionFactory(config, clientConfig);
+                }
+
                 return new LettuceConnectionFactory(config);
             }
         } catch (Exception ignored) {
