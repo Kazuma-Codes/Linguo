@@ -40,9 +40,8 @@
 3. Settings:
    - **Name:** `linguo-backend`
    - **Root Directory:** `backend`
-   - **Runtime:** Java
-   - **Build Command:** `mvn clean package -DskipTests`
-   - **Start Command:** `java -jar target/backend-1.0.0.jar`
+   - **Runtime:** `Docker`
+   - **Instance Type:** Free
 4. Add Environment Variables:
    ```
    DATABASE_URL          = [paste your PostgreSQL URL from Step 3]
