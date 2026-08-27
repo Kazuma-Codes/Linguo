@@ -5,6 +5,7 @@
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
     plan: free
+
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -16,3 +17,5 @@
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: PORT
+        value: 8000
