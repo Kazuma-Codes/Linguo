@@ -8,6 +8,11 @@ import java.util.Map;
 @RestController
 public class HealthController {
 
+    @GetMapping("/")
+    public Map<String, String> root() {
+        return Map.of("service", "Linguo Backend", "status", "UP");
+    }
+
     @GetMapping("/health")
     public Map<String, String> health() {
         return Map.of("status", "ok");
