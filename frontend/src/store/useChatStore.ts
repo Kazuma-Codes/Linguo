@@ -64,6 +64,7 @@ interface ChatState {
 // Keep a handle to any pending reconnect so disconnect() can cancel it
 // and we never end up with two sockets racing each other.
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let pingInterval: ReturnType<typeof setInterval> | null = null;
 
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
@@ -117,6 +118,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     ws.onopen = () => {
       set({ isConnected: true, connectionError: null });
+
+      // Keepalive heartbeat every 25s for cloud proxies (Render, Cloudflare, etc.)
+      if (pingInterval) clearInterval(pingInterval);
+      pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 25000);
     };
 
     ws.onmessage = (event) => {
@@ -129,6 +138,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       switch (data.type) {
+        case 'pong':
+          // Heartbeat response, connection is healthy
+          break;
+
         case 'draft_ready': {
           // Only track drafts for messages I'm sending — other users'
           // in-progress drafts aren't rendered.
@@ -181,6 +194,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     };
 
     ws.onclose = () => {
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
       set({ isConnected: false, ws: null });
       // Simple auto-reconnect. Remove this block if you'd rather
       // handle reconnection explicitly from the UI.
@@ -193,6 +210,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   disconnect: () => {
+    if (pingInterval) {
+      clearInterval(pingInterval);
+      pingInterval = null;
+    }
     // Cancel pending reconnect and close the socket cleanly
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);

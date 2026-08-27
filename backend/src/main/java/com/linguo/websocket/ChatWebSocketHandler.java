@@ -118,6 +118,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             }
 
             switch (incoming.getType()) {
+                case "ping" -> {
+                    if (session.isOpen()) {
+                        session.sendMessage(new TextMessage("{\"type\":\"pong\"}"));
+                    }
+                }
                 case "send_draft" -> chatService.handleSendDraft(roomId, incoming.getText(), user);
                 case "confirm_draft" -> chatService.handleConfirmDraft(roomId, incoming.getId(), incoming.getEditedText(), user);
                 default -> log.debug("Unhandled incoming message type: {}", incoming.getType());
@@ -138,11 +143,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
-        log.error(
-                "WebSocket transport error for session {}",
-                session.getId(),
-                exception
-        );
+        if (exception instanceof java.io.EOFException) {
+            log.debug("WebSocket client disconnected abruptly (EOF) for session {}", session.getId());
+        } else {
+            log.warn("WebSocket transport error for session {}: {}", session.getId(), exception.getMessage());
+        }
     }
 
     private String extractRoomIdFromPath(String path) {

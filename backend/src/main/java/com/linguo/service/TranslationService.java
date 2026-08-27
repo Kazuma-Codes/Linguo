@@ -158,7 +158,7 @@ public class TranslationService {
                 "messages", List.of(Map.of("role", "user", "content", prompt)),
                 "response_format", Map.of("type", "json_object"),
                 "temperature", 0.1,
-                "max_tokens", 256
+                "max_tokens", 1024
         );
 
         String url = appProperties.getGroq().getBaseUrl() + "/chat/completions";
