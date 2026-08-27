@@ -1,21 +1,15 @@
-# Dependencies
-.venv/
-venv/
-__pycache__/
+# Java / Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
 
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-*.egg
-*.pyc
-*.pyo
-*.pyd
-dist/
-build/
-
-
-*.egg-info/
 # Environment
 .env
 .env.*
@@ -26,54 +20,31 @@ build/
 # Logs
 *.log
 
-# Coverage reports
-.coverage
-coverage/
-htmlcov/
-
 # IDE
 .vscode/
 .idea/
-
-# Docker volumes
-postgres_data/
-redis_data/
-minio_data/
-
-
-*.swp
-*.swo
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
 
 # OS files
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-
-# Testing
-.pytest_cache/
-.mypy_cache/
-.hypothesis/
-
-
-
-# Frontend build artifacts (if applicable)
+# Node / Next.js
+frontend/node_modules/
 node_modules/
 .next/
-.nuxt/
-dist/
+out/
 build/
+dist/
 
-# Compressed files
-*.zip
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.gz
-*.rar
-*.7z
-```
+# Testing
+.coverage
+coverage/
+.pytest_cache/
