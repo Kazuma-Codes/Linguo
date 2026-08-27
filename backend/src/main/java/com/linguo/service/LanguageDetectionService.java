@@ -14,7 +14,7 @@ public class LanguageDetectionService {
     private static final Logger log = LoggerFactory.getLogger(LanguageDetectionService.class);
 
     private static final Map<String, Set<String>> LATIN_LANGUAGE_KEYWORDS = Map.of(
-            "es", Set.of("el", "la", "de", "que", "y", "en", "un", "por", "para", "con", "no", "una", "los", "las", "del", "al", "como", "hola", "gracias", "buenos", "dias", "que", "haces", "amigo"),
+            "es", Set.of("el", "la", "de", "que", "y", "en", "un", "por", "para", "con", "no", "una", "los", "las", "del", "al", "como", "hola", "gracias", "buenos", "dias", "haces", "amigo"),
             "fr", Set.of("le", "la", "de", "et", "un", "une", "dans", "pour", "pas", "sur", "qui", "avec", "bonjour", "merci", "oui", "non", "salut", "comment", "vous", "est", "sont"),
             "de", Set.of("der", "die", "das", "und", "in", "den", "von", "zu", "mit", "sich", "auf", "fuer", "ist", "hallo", "danke", "guten", "tag", "nicht", "ein", "eine"),
             "it", Set.of("il", "la", "di", "e", "in", "un", "una", "per", "non", "con", "sono", "che", "ciao", "grazie", "buongiorno", "come", "stai", "cosa"),
