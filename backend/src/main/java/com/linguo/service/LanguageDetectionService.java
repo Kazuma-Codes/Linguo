@@ -19,12 +19,14 @@ public class LanguageDetectionService {
             "de", Set.of("der", "die", "das", "und", "in", "den", "von", "zu", "mit", "sich", "auf", "fuer", "ist", "hallo", "danke", "guten", "tag", "nicht", "ein", "eine"),
             "it", Set.of("il", "la", "di", "e", "in", "un", "una", "per", "non", "con", "sono", "che", "ciao", "grazie", "buongiorno", "come", "stai", "cosa"),
             "pt", Set.of("o", "a", "de", "e", "do", "da", "em", "um", "para", "com", "nao", "uma", "os", "no", "ola", "obrigado", "bom", "dia", "tudo", "bem"),
-            "en", Set.of("the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "hello", "hi", "how", "are")
+            "hi", Set.of("kya", "hai", "nahi", "aap", "kaise", "theek", "hoon", "bhai", "namaste", "shukriya", "accha", "kahan", "bolo", "mera", "meri", "hum", "tum", "kar", "rahe", "ho", "dhanyawad"),
+            "en", Set.of("the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "hello", "hi", "how", "are", "what", "is", "your", "name", "good", "morning", "thanks", "welcome")
     );
+
 
     public String detectLanguage(String text) {
         if (text == null || text.isBlank()) {
-            return "en";
+            return null;
         }
 
         String cleaned = text.trim();
@@ -51,6 +53,7 @@ public class LanguageDetectionService {
             else if (block == Character.UnicodeBlock.HIRAGANA || block == Character.UnicodeBlock.KATAKANA) hiraganaKatakanaCount++;
             else if (block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS) cjkCount++;
         }
+
 
         if (devanagariCount > 0 && devanagariCount >= totalChars / 4) return "hi";
         if (cyrillicCount > 0 && cyrillicCount >= totalChars / 4) return "ru";
