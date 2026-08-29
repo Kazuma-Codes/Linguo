@@ -127,6 +127,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 }
                 case "send_draft" -> chatService.handleSendDraft(roomId, incoming.getText(), user);
                 case "confirm_draft" -> chatService.handleConfirmDraft(roomId, incoming.getId(), incoming.getEditedText(), user);
+                case "send_message", "direct_send" -> chatService.handleDirectSend(roomId, incoming.getText(), user);
                 default -> log.debug("Unhandled incoming message type: {}", incoming.getType());
             }
         } catch (Exception e) {

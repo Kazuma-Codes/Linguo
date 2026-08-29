@@ -59,6 +59,7 @@ interface ChatState {
 
   sendDraft: (text: string) => void;
   confirmDraft: (id: string, editedText: string) => void;
+  sendMessage: (text: string) => void;
 }
 
 // Keep a handle to any pending reconnect so disconnect() can cancel it
@@ -242,6 +243,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ws.send(JSON.stringify({ type: 'confirm_draft', id, edited_text: editedText }));
     } else {
       console.warn('[chatStore] Cannot confirm draft — socket not open');
+    }
+  },
+
+  sendMessage: (text) => {
+    const ws = get().ws;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'send_message', text }));
+    } else {
+      console.warn('[chatStore] Cannot send message — socket not open');
     }
   },
 }));

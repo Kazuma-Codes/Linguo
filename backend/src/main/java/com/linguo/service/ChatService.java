@@ -17,6 +17,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Map;
 import java.util.Set;
@@ -83,22 +85,82 @@ public class ChatService {
                 .id(msg.getId().toString())
                 .senderEmail(sender.getEmail())
                 .text(text)
+                .originalText(text)
                 .translatedText(null)
                 .status("draft")
                 .build();
 
         redisPubSubService.publish(roomIdStr, immediateDraft);
 
-        // Trigger background translation via the Spring proxy so @Async works
-        self.processTranslationAsync(msg.getId());
+        final UUID msgId = msg.getId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    self.processTranslationAsync(msgId);
+                }
+            });
+        } else {
+            self.processTranslationAsync(msgId);
+        }
+    }
+
+    @Transactional
+    public void handleDirectSend(String roomIdStr, String text, User sender) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+
+        UUID roomId = UUID.fromString(roomIdStr);
+        ChatRoom room = roomRepository.findById(roomId).orElse(null);
+        if (room == null) {
+            return;
+        }
+
+        String detectedRaw = languageDetectionService.detectLanguage(text);
+        String detCode = detectedRaw != null ? translationService.normLang(detectedRaw) : null;
+
+        Message msg = Message.builder()
+                .room(room)
+                .sender(sender)
+                .originalText(text)
+                .translatedText(text)
+                .detectedLang(detCode)
+                .status("final")
+                .messageType("text")
+                .build();
+
+        msg = messageRepository.saveAndFlush(msg);
+
+        WsOutgoingMessage finalizedMsg = WsOutgoingMessage.builder()
+                .type("message_finalized")
+                .id(msg.getId().toString())
+                .senderEmail(sender.getEmail())
+                .originalText(text)
+                .text(text)
+                .translatedText(null)
+                .detectedLang(detCode)
+                .status("final")
+                .build();
+
+        redisPubSubService.publish(roomIdStr, finalizedMsg);
+        log.info("Direct message finalized immediately: {}", msg.getId());
     }
 
     @Async
     @Transactional
     public void processTranslationAsync(UUID messageId) {
         try {
-            Message msg = messageRepository.findById(messageId).orElse(null);
+            Message msg = null;
+            // Short retry loop in case database read lags behind commit
+            for (int i = 0; i < 3; i++) {
+                msg = messageRepository.findById(messageId).orElse(null);
+                if (msg != null) break;
+                Thread.sleep(50);
+            }
+
             if (msg == null) {
+                log.warn("Message {} not found for async translation", messageId);
                 return;
             }
 
@@ -122,7 +184,6 @@ public class ChatService {
             String actualSource;
 
             if (myCode != null && pair.contains(myCode)) {
-                // If user seat is set, only override if high-confidence detection matches the OTHER seat
                 if (detCode != null && pair.contains(detCode) && !detCode.equals(myCode)) {
                     actualSource = detCode;
                 } else {
@@ -148,6 +209,9 @@ public class ChatService {
 
             // Step 1: Translate
             String translated = translationService.translateText(msg.getOriginalText(), actualSource, actualTarget);
+            if (translated == null || translated.isBlank()) {
+                translated = msg.getOriginalText();
+            }
             msg.setTranslatedText(translated);
             msg = messageRepository.saveAndFlush(msg);
 
@@ -165,33 +229,57 @@ public class ChatService {
             redisPubSubService.publish(roomIdStr, translatedDraft);
 
             // Step 2: Cultural footnotes
-            CulturalFootnotes footnotes = translationService.getCulturalFootnotes(
-                    msg.getOriginalText(),
-                    translated,
-                    actualTarget
-            );
+            try {
+                CulturalFootnotes footnotes = translationService.getCulturalFootnotes(
+                        msg.getOriginalText(),
+                        translated,
+                        actualTarget
+                );
 
-            if (footnotes != null) {
-                msg.setCulturalFootnotes(objectMapper.writeValueAsString(footnotes));
-                messageRepository.saveAndFlush(msg);
+                if (footnotes != null) {
+                    msg.setCulturalFootnotes(objectMapper.writeValueAsString(footnotes));
+                    messageRepository.saveAndFlush(msg);
 
-                WsOutgoingMessage footnotesDraft = WsOutgoingMessage.builder()
-                        .type("draft_ready")
-                        .id(msg.getId().toString())
-                        .senderEmail(sender.getEmail())
-                        .originalText(msg.getOriginalText())
-                        .text(msg.getOriginalText())
-                        .translatedText(translated)
-                        .detectedLang(detCode)
-                        .culturalFootnotes(footnotes)
-                        .status("draft")
-                        .build();
+                    WsOutgoingMessage footnotesDraft = WsOutgoingMessage.builder()
+                            .type("draft_ready")
+                            .id(msg.getId().toString())
+                            .senderEmail(sender.getEmail())
+                            .originalText(msg.getOriginalText())
+                            .text(msg.getOriginalText())
+                            .translatedText(translated)
+                            .detectedLang(detCode)
+                            .culturalFootnotes(footnotes)
+                            .status("draft")
+                            .build();
 
-                redisPubSubService.publish(roomIdStr, footnotesDraft);
+                    redisPubSubService.publish(roomIdStr, footnotesDraft);
+                }
+            } catch (Exception fnEx) {
+                log.warn("Cultural footnotes analysis failed for message {}: {}", messageId, fnEx.getMessage());
             }
 
         } catch (Exception e) {
             log.error("processTranslationAsync failed for message {}", messageId, e);
+            // Broadcast fallback to ensure client draft is never stuck waiting indefinitely
+            try {
+                Message fallbackMsg = messageRepository.findById(messageId).orElse(null);
+                if (fallbackMsg != null) {
+                    fallbackMsg.setTranslatedText(fallbackMsg.getOriginalText());
+                    messageRepository.saveAndFlush(fallbackMsg);
+
+                    WsOutgoingMessage fallbackDraft = WsOutgoingMessage.builder()
+                            .type("draft_ready")
+                            .id(fallbackMsg.getId().toString())
+                            .senderEmail(fallbackMsg.getSender().getEmail())
+                            .originalText(fallbackMsg.getOriginalText())
+                            .text(fallbackMsg.getOriginalText())
+                            .translatedText(fallbackMsg.getOriginalText())
+                            .status("draft")
+                            .build();
+                    redisPubSubService.publish(fallbackMsg.getRoom().getId().toString(), fallbackDraft);
+                }
+            } catch (Exception ignored) {
+            }
         }
     }
 

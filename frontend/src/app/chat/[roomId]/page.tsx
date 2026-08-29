@@ -68,6 +68,7 @@ export default function ChatRoomPage() {
     disconnect,
     sendDraft,
     confirmDraft,
+    sendMessage,
     removeDraft,
     updateDraftTranslation,
   } = useChatStore();
@@ -120,6 +121,14 @@ export default function ChatRoomPage() {
   };
 
   const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed || !isConnected) return;
+    sendMessage(trimmed);
+    setInput('');
+  };
+
+  const handleDraft = (e: React.MouseEvent) => {
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || !isConnected) return;
@@ -268,11 +277,11 @@ export default function ChatRoomPage() {
                 <div key={d.id} className="flex justify-end">
                   <div className="max-w-[80%] p-3 rounded-lg bg-yellow-900/40 border border-yellow-500">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-yellow-200">Drafting...</p>
+                      <p className="text-xs text-yellow-200">Draft Translation</p>
                       {isTranslating && (
                           <span className="text-xs text-yellow-400 animate-pulse flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-ping" />
-                      Translating...
+                      Translating with Groq...
                     </span>
                       )}
                     </div>
@@ -282,25 +291,31 @@ export default function ChatRoomPage() {
                     <textarea
                         value={d.translated_text ?? ''}
                         onChange={(e) => updateDraftTranslation(d.id, e.target.value)}
-                        disabled={isTranslating}
-                        className="w-full bg-gray-800 p-2 rounded text-sm my-2 resize-none disabled:opacity-50"
+                        className="w-full bg-gray-800 p-2 rounded text-sm my-2 resize-none text-white focus:outline-none focus:ring-1 focus:ring-yellow-500"
                         rows={2}
-                        placeholder={isTranslating ? "Translating with Groq..." : "Edit translation before sending..."}
+                        placeholder={isTranslating ? "Translating with Groq... (or type your translation)" : "Edit translation before sending..."}
                     />
 
                     <Footnotes footnotes={d.cultural_footnotes as CulturalFootnotes | undefined} />
 
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex flex-wrap gap-2 mt-2">
                       <button
-                          onClick={() => confirmDraft(d.id, d.translated_text ?? d.original_text)}
-                          disabled={isTranslating}
-                          className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1 rounded text-sm font-medium"
+                          onClick={() => confirmDraft(d.id, d.translated_text || d.original_text)}
+                          className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm font-medium transition-colors"
+                          title="Send the translated (or edited) message"
                       >
                         Send
                       </button>
                       <button
+                          onClick={() => confirmDraft(d.id, d.original_text)}
+                          className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm text-gray-200 transition-colors"
+                          title="Send original untranslated text"
+                      >
+                        Send Original
+                      </button>
+                      <button
                           onClick={() => removeDraft(d.id)}
-                          className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
+                          className="bg-red-600/80 hover:bg-red-700 px-3 py-1 rounded text-sm transition-colors"
                       >
                         Cancel
                       </button>
@@ -320,19 +335,30 @@ export default function ChatRoomPage() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={
                 isConnected
-                    ? `Type in ${LANG_NAMES[myLang] || myLang}...`
+                    ? `Type in ${LANG_NAMES[myLang] || myLang}... (Enter to Send)`
                     : 'Connecting...'
               }
               disabled={!isConnected}
-              className="flex-1 bg-gray-700 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              className="flex-1 bg-gray-700 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 text-sm sm:text-base"
           />
 
           <button
               type="submit"
               disabled={!isConnected || !input.trim()}
-              className="bg-blue-600 hover:bg-blue-700 px-6 rounded-lg font-semibold disabled:opacity-50"
+              className="bg-blue-600 hover:bg-blue-700 px-4 sm:px-5 rounded-lg font-semibold disabled:opacity-50 transition-colors text-sm"
+              title="Send directly without translating"
           >
-            Draft
+            Send
+          </button>
+
+          <button
+              type="button"
+              onClick={handleDraft}
+              disabled={!isConnected || !input.trim()}
+              className="bg-purple-600 hover:bg-purple-700 px-4 rounded-lg font-medium disabled:opacity-50 transition-colors text-sm flex items-center gap-1"
+              title="Translate with Groq and preview before sending"
+          >
+            ✨ Translate
           </button>
         </form>
       </div>
