@@ -51,5 +51,6 @@ app:
     api-key: ${GROQ_API_KEY:}
     base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
     model: ${GROQ_MODEL:openai/gpt-oss-20b}
+    backup-model: ${GROQ_BACKUP_MODEL:qwen/qwen3.8-27b}
   cors:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}

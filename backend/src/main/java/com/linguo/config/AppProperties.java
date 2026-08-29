@@ -40,7 +40,7 @@ public class AppProperties {
 
     public static class Jwt {
         private String secret = "default-secret-key-must-be-at-least-32-chars-long-security";
-        private int expirationMinutes = 10080; // 7 days
+        private int expirationMinutes = 10080;
 
         public String getSecret() {
             return secret;
@@ -62,7 +62,8 @@ public class AppProperties {
     public static class Groq {
         private String apiKey = "";
         private String baseUrl = "https://api.groq.com/openai/v1";
-        private String model = "llama-3.1-8b-instant";
+        private String model = "openai/gpt-oss-20b";
+        private String backupModel = "qwen/qwen3.8-27b";
 
         public String getApiKey() {
             return apiKey;
@@ -86,6 +87,14 @@ public class AppProperties {
 
         public void setModel(String model) {
             this.model = model;
+        }
+
+        public String getBackupModel() {
+            return backupModel;
+        }
+
+        public void setBackupModel(String backupModel) {
+            this.backupModel = backupModel;
         }
     }
 

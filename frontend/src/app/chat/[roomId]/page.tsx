@@ -145,39 +145,54 @@ export default function ChatRoomPage() {
           </div>
         ))}
 
-        {drafts.map((d) => (
-          <div key={d.id} className="flex justify-end">
-            <div className="max-w-[80%] p-3 rounded-lg bg-yellow-900/40 border border-yellow-500">
-              <p className="text-xs text-yellow-200 mb-1">Drafting...</p>
-              <p className="text-sm italic text-gray-300">Original: {d.original_text}</p>
+        {drafts.map((d) => {
+          const isTranslating = d.translated_text === null || d.translated_text === undefined;
 
-              <textarea
-                value={d.translated_text ?? ''}
-                onChange={(e) => updateDraftTranslation(d.id, e.target.value)}
-                className="w-full bg-gray-800 p-2 rounded text-sm my-2 resize-none"
-                rows={2}
-                placeholder="Edit translation before sending..."
-              />
+          return (
+            <div key={d.id} className="flex justify-end">
+              <div className="max-w-[80%] p-3 rounded-lg bg-yellow-900/40 border border-yellow-500">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-yellow-200">Drafting...</p>
+                  {isTranslating && (
+                    <span className="text-xs text-yellow-400 animate-pulse flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-ping" />
+                      Translating...
+                    </span>
+                  )}
+                </div>
 
-              <Footnotes footnotes={d.cultural_footnotes as CulturalFootnotes | undefined} />
+                <p className="text-sm italic text-gray-300">Original: {d.original_text}</p>
 
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => confirmDraft(d.id, d.translated_text ?? '')}
-                  className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm"
-                >
-                  Send
-                </button>
-                <button
-                  onClick={() => removeDraft(d.id)}
-                  className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
-                >
-                  Cancel
-                </button>
+                <textarea
+                  value={d.translated_text ?? ''}
+                  onChange={(e) => updateDraftTranslation(d.id, e.target.value)}
+                  disabled={isTranslating}
+                  className="w-full bg-gray-800 p-2 rounded text-sm my-2 resize-none disabled:opacity-50"
+                  rows={2}
+                  placeholder={isTranslating ? "Translating with Groq..." : "Edit translation before sending..."}
+                />
+
+                <Footnotes footnotes={d.cultural_footnotes as CulturalFootnotes | undefined} />
+
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => confirmDraft(d.id, d.translated_text ?? d.original_text)}
+                    disabled={isTranslating}
+                    className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1 rounded text-sm font-medium"
+                  >
+                    Send
+                  </button>
+                  <button
+                    onClick={() => removeDraft(d.id)}
+                    className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <div ref={messagesEndRef} />
       </div>

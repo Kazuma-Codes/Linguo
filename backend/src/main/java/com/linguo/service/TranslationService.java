@@ -6,15 +6,17 @@ import com.linguo.config.AppProperties;
 import com.linguo.model.dto.CulturalFootnotes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.*;
 
 @Service
 public class TranslationService {
@@ -51,9 +53,41 @@ public class TranslationService {
     public TranslationService(AppProperties appProperties, ObjectMapper objectMapper) {
         this.appProperties = appProperties;
         this.objectMapper = objectMapper;
+
+        // Configure modern HTTP/2 client with keep-alive & timeouts
+        HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_2)
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(8));
+
         this.restClient = RestClient.builder()
+                .requestFactory(requestFactory)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
+    }
+
+    /**
+     * Warms up DNS, TCP, and TLS connections to Groq in the background on startup
+     * so the very first user message does not experience a cold-start delay.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void warmUp() {
+        String apiKey = appProperties.getGroq().getApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            return;
+        }
+        Thread.ofVirtual().start(() -> {
+            try {
+                log.info("Warming up Groq connection pool...");
+                translateText("hi", "en", "es");
+                log.info("Groq warmup completed successfully.");
+            } catch (Exception e) {
+                log.debug("Groq warmup finished: {}", e.getMessage());
+            }
+        });
     }
 
     public String normLang(String lang) {
@@ -97,18 +131,30 @@ public class TranslationService {
             return text;
         }
 
-        Map<String, Object> requestBody = Map.of(
-                "model", appProperties.getGroq().getModel(),
-                "messages", List.of(Map.of("role", "user", "content", prompt)),
-                "response_format", Map.of("type", "json_object"),
-                "temperature", 0.1,
-                "max_tokens", 1024
-        );
+        // Build list of models to try: Primary (openai/gpt-oss-20b) -> Backup (qwen/qwen3.8-27b)
+        List<String> modelsToTry = new ArrayList<>();
+        String primaryModel = appProperties.getGroq().getModel();
+        String backupModel = appProperties.getGroq().getBackupModel();
+
+        if (primaryModel != null && !primaryModel.isBlank()) {
+            modelsToTry.add(primaryModel);
+        }
+        if (backupModel != null && !backupModel.isBlank() && !backupModel.equals(primaryModel)) {
+            modelsToTry.add(backupModel);
+        }
 
         String url = appProperties.getGroq().getBaseUrl() + "/chat/completions";
 
-        for (int attempt = 1; attempt <= 2; attempt++) {
+        for (String modelName : modelsToTry) {
             try {
+                Map<String, Object> requestBody = Map.of(
+                        "model", modelName,
+                        "messages", List.of(Map.of("role", "user", "content", prompt)),
+                        "response_format", Map.of("type", "json_object"),
+                        "temperature", 0.1,
+                        "max_tokens", 1024
+                );
+
                 String responseBody = restClient.post()
                         .uri(url)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
@@ -135,7 +181,7 @@ public class TranslationService {
                     }
                 }
             } catch (Exception e) {
-                log.warn("Translation attempt {} failed: {}", attempt, e.getMessage());
+                log.warn("Translation failed with model {}: {}. Attempting fallback...", modelName, e.getMessage());
             }
         }
 
@@ -153,34 +199,43 @@ public class TranslationService {
                 "Translated (" + targetLang + "): " + translated + "\n" +
                 "Return ONLY JSON: {\"humor_explanation\": \"string|null\", \"idiom_breakdown\": \"string|null\", \"etiquette_warning\": \"string|null\"}";
 
-        Map<String, Object> requestBody = Map.of(
-                "model", appProperties.getGroq().getModel(),
-                "messages", List.of(Map.of("role", "user", "content", prompt)),
-                "response_format", Map.of("type", "json_object"),
-                "temperature", 0.1,
-                "max_tokens", 1024
-        );
+        List<String> modelsToTry = new ArrayList<>();
+        String primaryModel = appProperties.getGroq().getModel();
+        String backupModel = appProperties.getGroq().getBackupModel();
+
+        if (primaryModel != null && !primaryModel.isBlank()) modelsToTry.add(primaryModel);
+        if (backupModel != null && !backupModel.isBlank() && !backupModel.equals(primaryModel)) modelsToTry.add(backupModel);
 
         String url = appProperties.getGroq().getBaseUrl() + "/chat/completions";
 
-        try {
-            String responseBody = restClient.post()
-                    .uri(url)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                    .body(requestBody)
-                    .retrieve()
-                    .body(String.class);
+        for (String modelName : modelsToTry) {
+            try {
+                Map<String, Object> requestBody = Map.of(
+                        "model", modelName,
+                        "messages", List.of(Map.of("role", "user", "content", prompt)),
+                        "response_format", Map.of("type", "json_object"),
+                        "temperature", 0.1,
+                        "max_tokens", 1024
+                );
 
-            if (responseBody != null) {
-                JsonNode root = objectMapper.readTree(responseBody);
-                JsonNode choices = root.path("choices");
-                if (choices.isArray() && !choices.isEmpty()) {
-                    String content = choices.get(0).path("message").path("content").asText();
-                    return objectMapper.readValue(content, CulturalFootnotes.class);
+                String responseBody = restClient.post()
+                        .uri(url)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(String.class);
+
+                if (responseBody != null) {
+                    JsonNode root = objectMapper.readTree(responseBody);
+                    JsonNode choices = root.path("choices");
+                    if (choices.isArray() && !choices.isEmpty()) {
+                        String content = choices.get(0).path("message").path("content").asText();
+                        return objectMapper.readValue(content, CulturalFootnotes.class);
+                    }
                 }
+            } catch (Exception e) {
+                log.warn("Cultural analysis failed with model {}: {}", modelName, e.getMessage());
             }
-        } catch (Exception e) {
-            log.error("Cultural analysis failed: {}", e.getMessage());
         }
 
         return null;
