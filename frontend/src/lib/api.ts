@@ -17,16 +17,29 @@ class ApiError extends Error {
   }
 }
 
-/** Fetch wrapper that throws ApiError on non-2xx responses. */
-async function apiFetch(path: string, options: RequestInit = {}) {
-  const res = await fetch(`${API_BASE_URL}${path}`, options);
+/** Fetch wrapper that throws ApiError on non-2xx responses with automatic retry on network disconnects. */
+async function apiFetch(path: string, options: RequestInit = {}, retries = 1): Promise<any> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, options);
+  } catch (err: any) {
+    if (retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      return apiFetch(path, options, retries - 1);
+    }
+    throw new ApiError(
+      'Unable to connect to server. Please check your network connection.',
+      0,
+    );
+  }
+
   if (!res.ok) {
     let detail = `Request failed (${res.status})`;
     try {
       const body = await res.json();
-      detail = body.detail ?? detail;
+      detail = body.message ?? body.detail ?? detail;
     } catch {
-      // response wasn't JSON — keep the generic message
+      // response wasn't JSON — keep generic message
     }
     throw new ApiError(detail, res.status);
   }

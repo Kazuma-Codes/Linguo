@@ -82,14 +82,16 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
+        UUID roomId;
         try {
-            UUID roomId = UUID.fromString(roomIdStr);
+            roomId = UUID.fromString(roomIdStr.trim());
             if (!roomRepository.existsById(roomId)) {
-                log.warn("WebSocket connection rejected: room not found");
+                log.warn("WebSocket connection rejected: room not found: {}", roomIdStr);
                 session.close(CloseStatus.SERVER_ERROR);
                 return;
             }
         } catch (IllegalArgumentException e) {
+            log.warn("WebSocket connection rejected: invalid room UUID format: {}", roomIdStr);
             session.close(CloseStatus.BAD_DATA);
             return;
         }
@@ -155,9 +157,10 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         String prefix = "/api/v1/ws/chat/";
         int idx = path.indexOf(prefix);
         if (idx != -1) {
-            String sub = path.substring(idx + prefix.length());
+            String sub = path.substring(idx + prefix.length()).trim();
             int slash = sub.indexOf('/');
-            return slash != -1 ? sub.substring(0, slash) : sub;
+            String extracted = slash != -1 ? sub.substring(0, slash) : sub;
+            return extracted.trim();
         }
         return null;
     }

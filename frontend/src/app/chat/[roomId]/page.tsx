@@ -60,14 +60,15 @@ export default function ChatRoomPage() {
   } = useChatStore();
 
   const [input, setInput] = useState('');
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Redirect to login if not authenticated, then connect the socket for this room.
+  // Redirect to login if not authenticated, preserving redirect URL, then connect socket.
   useEffect(() => {
     if (!hasHydrated) return;
 
     if (!token || !user) {
-      router.push('/');
+      router.push(`/?redirect=${encodeURIComponent(`/chat/${roomId}`)}`);
       return;
     }
     connect(roomId, token, user.email);
@@ -88,6 +89,29 @@ export default function ChatRoomPage() {
     setInput('');
   };
 
+  const handleCopyLink = async () => {
+    try {
+      const inviteUrl = `${window.location.origin}/chat/${roomId}`;
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopyFeedback('Invite Link Copied!');
+      setTimeout(() => setCopyFeedback(null), 2500);
+    } catch {
+      setCopyFeedback('Failed to copy');
+      setTimeout(() => setCopyFeedback(null), 2500);
+    }
+  };
+
+  const handleCopyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(roomId);
+      setCopyFeedback('Room Code Copied!');
+      setTimeout(() => setCopyFeedback(null), 2500);
+    } catch {
+      setCopyFeedback('Failed to copy');
+      setTimeout(() => setCopyFeedback(null), 2500);
+    }
+  };
+
   const handleLogout = () => {
     disconnect();
     logout();
@@ -105,16 +129,52 @@ export default function ChatRoomPage() {
   if (!user) return null;
 
   return (
-    <div className="flex flex-col h-screen max-w-2xl mx-auto bg-gray-900 text-white">
+    <div className="flex flex-col h-screen max-w-3xl mx-auto bg-gray-900 text-white">
       {/* Header */}
-      <header className="bg-gray-800 p-4 flex justify-between items-center border-b border-gray-700">
-        <div>
-          <h1 className="font-bold text-lg">Room</h1>
-          <ConnectionStatus isConnected={isConnected} />
+      <header className="bg-gray-800 p-3 sm:p-4 flex flex-wrap gap-2 justify-between items-center border-b border-gray-700">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push('/')}
+            className="text-gray-400 hover:text-white text-sm font-medium transition-colors"
+            title="Back to Dashboard"
+          >
+            ← Back
+          </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-bold text-base sm:text-lg">Chat Room</h1>
+              <ConnectionStatus isConnected={isConnected} />
+            </div>
+            <p className="text-xs text-gray-400 font-mono truncate max-w-[180px] sm:max-w-xs" title={roomId}>
+              ID: {roomId}
+            </p>
+          </div>
         </div>
-        <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300">
-          Logout
-        </button>
+
+        <div className="flex items-center gap-2">
+          {copyFeedback && (
+            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded border border-green-500/30 animate-pulse">
+              {copyFeedback}
+            </span>
+          )}
+          <button
+            onClick={handleCopyLink}
+            className="text-xs bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/40 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+            title="Copy Shareable Invite Link"
+          >
+            🔗 Share Link
+          </button>
+          <button
+            onClick={handleCopyCode}
+            className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+            title="Copy Room Code"
+          >
+            📋 Copy Code
+          </button>
+          <button onClick={handleLogout} className="text-xs text-red-400 hover:text-red-300 ml-1">
+            Logout
+          </button>
+        </div>
       </header>
 
       {/* Messages + drafts */}

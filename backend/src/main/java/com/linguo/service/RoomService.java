@@ -107,7 +107,7 @@ public class RoomService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
 
         if (participantRepository.existsByRoomIdAndUserId(roomId, currentUser.getId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Already a participant in this room");
+            return Map.of("status", "already_joined", "room_id", roomId.toString());
         }
 
         String seat = assignSeat(room, currentUser, false);
@@ -127,13 +127,22 @@ public class RoomService {
         ChatRoom room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
 
+        boolean isCreator = currentUser.getId().equals(room.getCreator().getId());
+
         ChatParticipant participant = participantRepository.findByRoomIdAndUserId(roomId, currentUser.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a participant of this room"));
+                .orElseGet(() -> {
+                    String seat = assignSeat(room, currentUser, isCreator);
+                    ChatParticipant newPart = ChatParticipant.builder()
+                            .room(room)
+                            .user(currentUser)
+                            .language(seat)
+                            .build();
+                    return participantRepository.save(newPart);
+                });
 
         if (participant.getLanguage() == null) {
-            boolean isCreator = currentUser.getId().equals(room.getCreator().getId());
             participant.setLanguage(assignSeat(room, currentUser, isCreator));
-            participantRepository.save(participant);
+            participant = participantRepository.save(participant);
         }
 
         return RoomDetailResponse.detailBuilder()

@@ -5,6 +5,19 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
 import { login, register, getMe, createRoom, joinRoom, listRooms } from '@/lib/api';
 
+function extractRoomId(input: string): string {
+  const trimmed = input.trim();
+  const uuidMatch = trimmed.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  if (uuidMatch) {
+    return uuidMatch[0];
+  }
+  if (trimmed.includes('/chat/')) {
+    const afterChat = trimmed.split('/chat/')[1];
+    return afterChat.split(/[?#/]/)[0].trim();
+  }
+  return trimmed;
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { token, user, setAuth, logout, hasHydrated } = useAuthStore();
@@ -26,6 +39,15 @@ export default function HomePage() {
 
   useEffect(() => {
     if (token && user) {
+      // Check if user was redirected here with a target room
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        if (redirect && redirect.startsWith('/')) {
+          router.push(redirect);
+          return;
+        }
+      }
       loadRooms();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -59,6 +81,16 @@ export default function HomePage() {
       setAuth(accessToken, userData);
       setEmail('');
       setPassword('');
+
+      // Check if redirect query param exists
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        if (redirect && redirect.startsWith('/')) {
+          router.push(redirect);
+          return;
+        }
+      }
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed. Please try again.');
     }
@@ -79,11 +111,12 @@ export default function HomePage() {
 
   const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !joinRoomId.trim()) return;
+    const cleanId = extractRoomId(joinRoomId);
+    if (!token || !cleanId) return;
     setDashboardError('');
     try {
-      await joinRoom(token, joinRoomId.trim());
-      router.push(`/chat/${joinRoomId.trim()}`);
+      await joinRoom(token, cleanId);
+      router.push(`/chat/${cleanId}`);
     } catch (err: any) {
       setDashboardError(err.message || 'Failed to join room.');
     }
@@ -246,19 +279,22 @@ export default function HomePage() {
             </h2>
             <form onSubmit={handleJoinRoom} className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Room ID</label>
+                <label className="block text-sm text-gray-400 mb-1">Room Code or Invite Link</label>
                 <input
                   type="text"
                   required
                   value={joinRoomId}
                   onChange={(e) => setJoinRoomId(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                  placeholder="Enter Room ID"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none placeholder:text-gray-500 text-sm"
+                  placeholder="Paste invite link (https://...) or enter room code"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  You can paste a full invite URL or enter the room code directly.
+                </p>
               </div>
               <button
                 type="submit"
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition-colors mt-6"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition-colors mt-2"
               >
                 Join Room
               </button>
