@@ -42,7 +42,9 @@ public class TranslationService {
             Map.entry("ko", "Korean")
     );
 
+    private static final Set<String> LATIN_SCRIPT_LANGUAGES = Set.of("en", "es", "fr", "de", "it", "pt");
     private static final Map<String, String> NAME_TO_CODE = new HashMap<>();
+
 
     static {
         for (Map.Entry<String, String> entry : LANG_MAP.entrySet()) {
@@ -118,12 +120,21 @@ public class TranslationService {
         String srcName = LANG_MAP.getOrDefault(srcNorm, srcNorm);
         String tgtName = LANG_MAP.getOrDefault(tgtNorm, tgtNorm);
 
-        String prompt = "Translate the following text from " + srcName + " into " + tgtName + ".\n" +
-                "Respond ONLY with a JSON object containing two fields:\n" +
-                "1. 'native': The " + tgtName + " translation in its native script.\n" +
-                "2. 'romanized': The " + tgtName + " translation written phonetically in the " +
-                "Latin/English alphabet (e.g., 'aapka naam kya he').\n\n" +
-                "Text to translate: " + text;
+        boolean isLatinTarget = LATIN_SCRIPT_LANGUAGES.contains(tgtNorm);
+
+        String prompt;
+        if (isLatinTarget) {
+            prompt = "Translate the following text from " + srcName + " into " + tgtName + ".\n" +
+                    "Respond ONLY with a JSON object containing the field:\n" +
+                    "1. 'native': The accurate and natural " + tgtName + " translation.\n\n" +
+                    "Text to translate: " + text;
+        } else {
+            prompt = "Translate the following text from " + srcName + " into " + tgtName + ".\n" +
+                    "Respond ONLY with a JSON object containing two fields:\n" +
+                    "1. 'native': The " + tgtName + " translation in its native script.\n" +
+                    "2. 'romanized': The " + tgtName + " translation written phonetically in the Latin alphabet.\n\n" +
+                    "Text to translate: " + text;
+        }
 
         String apiKey = appProperties.getGroq().getApiKey();
         if (apiKey == null || apiKey.isBlank()) {
@@ -193,6 +204,10 @@ public class TranslationService {
         if (apiKey == null || apiKey.isBlank() || original == null || translated == null) {
             return null;
         }
+
+
+        String tgtNorm = normLang(targetLang);
+        String tgtName = LANG_MAP.getOrDefault(tgtNorm, targetLang);
 
         String prompt = "You are a cultural intelligence expert. Analyze:\n" +
                 "Original: " + original + "\n" +
