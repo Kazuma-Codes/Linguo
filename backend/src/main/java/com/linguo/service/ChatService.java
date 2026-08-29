@@ -110,7 +110,8 @@ public class ChatService {
                     .findByRoomIdAndUserId(room.getId(), sender.getId())
                     .orElse(null);
 
-            String detCode = translationService.normLang(languageDetectionService.detectLanguage(msg.getOriginalText()));
+            String detectedRaw = languageDetectionService.detectLanguage(msg.getOriginalText());
+            String detCode = detectedRaw != null ? translationService.normLang(detectedRaw) : null;
             String srcCode = translationService.normLang(room.getSourceLang());
             String tgtCode = translationService.normLang(room.getTargetLang());
             String myCode = participant != null ? translationService.normLang(participant.getLanguage()) : null;
@@ -119,14 +120,20 @@ public class ChatService {
 
             // Pick source language
             String actualSource;
-            if (detCode != null && pair.contains(detCode)) {
+
+            if (myCode != null && pair.contains(myCode)) {
+                // If user seat is set, only override if high-confidence detection matches the OTHER seat
+                if (detCode != null && pair.contains(detCode) && !detCode.equals(myCode)) {
+                    actualSource = detCode;
+                } else {
+                    actualSource = myCode;
+                }
+            } else if (detCode != null && pair.contains(detCode)) {
                 actualSource = detCode;
-            } else if (myCode != null && pair.contains(myCode)) {
-                actualSource = myCode;
             } else if (prefCode != null && pair.contains(prefCode)) {
                 actualSource = prefCode;
             } else {
-                actualSource = detCode != null ? detCode : "en";
+                actualSource = srcCode != null ? srcCode : "en";
             }
 
             // Target language is the opposite
