@@ -1,27 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto+Flex:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light Theme (Default) */
+  --bg: #FBF7F0;
+  --bg-subtle: #f4eee3;
+  --text: #1C1917;
+  --muted: #78716C;
+  --border: #e7e2d8;
+  --card: #ffffff;
+  --card-border: #e8e3d9;
+  --input-border: #D6D0C6;
+  --input-focus: #1C1917;
+  --btn-primary-bg: #1C1917;
+  --btn-primary-text: #FBF7F0;
+  --btn-primary-hover: #38332f;
+  --accent: #38663f;
+  --accent-light: #e8f0d8;
+  --accent-text: #1e4d24;
+  --dashboard-bg: #f0f4ea;
+  --dashboard-card: #fdfff8;
+  --dashboard-btn: #38663f;
+  --dashboard-btn-text: #ffffff;
+  --chat-bg: #f3f5fa;
+  --chat-card: #ffffff;
+  --chat-bubble-me: #6366f1;
+  --chat-bubble-me-text: #ffffff;
+  --chat-bubble-other: #f1f3f9;
+  --chat-bubble-other-text: #1e293b;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+[data-theme="dark"],
+.dark {
+  /* Dark Theme */
+  --bg: #0b0f19;
+  --bg-subtle: #111827;
+  --text: #f3f4f6;
+  --muted: #9ca3af;
+  --border: #1f293d;
+  --card: #131b2e;
+  --card-border: #1f2a44;
+  --input-border: #374151;
+  --input-focus: #60a5fa;
+  --btn-primary-bg: #f3f4f6;
+  --btn-primary-text: #0b0f19;
+  --btn-primary-hover: #e5e7eb;
+  --accent: #4ade80;
+  --accent-light: rgba(74, 222, 128, 0.15);
+  --accent-text: #86efac;
+  --dashboard-bg: #0b0f19;
+  --dashboard-card: #131b2e;
+  --dashboard-btn: #2563eb;
+  --dashboard-btn-text: #ffffff;
+  --chat-bg: #090d16;
+  --chat-card: #111827;
+  --chat-bubble-me: #4f46e5;
+  --chat-bubble-me-text: #ffffff;
+  --chat-bubble-other: #1f2937;
+  --chat-bubble-other-text: #f3f4f6;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  min-height: 100vh;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+.font-serif-display {
+  font-family: 'DM Serif Display', Georgia, serif;
 }
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+

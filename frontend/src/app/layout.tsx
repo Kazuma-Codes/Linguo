@@ -13,8 +13,11 @@ export const metadata: Metadata = {
 /** Root layout — wraps every page with the global font and dark theme background. */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-gray-900 text-white min-h-screen`}>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.className} min-h-screen antialiased selection:bg-indigo-500 selection:text-white`}>
+        {children}
+      </body>
     </html>
   );
 }
+
