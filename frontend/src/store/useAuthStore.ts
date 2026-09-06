@@ -20,6 +20,7 @@ interface AuthState {
   user: User | null;
   hasHydrated: boolean;                  // True once persisted state has been rehydrated
   setAuth: (token: string, user: User) => void;
+  updatePreferredLanguage: (lang: string) => void;
   logout: () => void;
   setHasHydrated: (state: boolean) => void;
 }
@@ -31,6 +32,10 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       hasHydrated: false,
       setAuth: (token, user) => set({ token, user }),
+      updatePreferredLanguage: (lang: string) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, preferred_language: lang } : null,
+        })),
       logout: () => set({ token: null, user: null }),
       setHasHydrated: (state) => set({ hasHydrated: state }),
     }),

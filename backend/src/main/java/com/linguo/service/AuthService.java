@@ -68,6 +68,21 @@ public class AuthService {
                 .build();
     }
 
+    @Transactional
+    public UserResponse updatePreferredLanguage(User user, String newLanguage) {
+        if (user == null || newLanguage == null || newLanguage.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user or language");
+        }
+
+        User managedUser = userRepository.findById(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        managedUser.setPreferredLanguage(newLanguage.trim().toLowerCase());
+        managedUser = userRepository.save(managedUser);
+
+        return toUserResponse(managedUser);
+    }
+
     public UserResponse toUserResponse(User user) {
         if (user == null) {
             return null;

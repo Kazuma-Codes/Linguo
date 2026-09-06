@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useThemeStore } from '@/store/useThemeStore';
-import { getRoom, setMyLanguage } from '@/lib/api';
+import { getRoom, setMyLanguage, updatePreferredLanguage } from '@/lib/api';
 
 const LANG_NAMES: Record<string, string> = {
   en: 'English',
@@ -49,7 +49,7 @@ export default function ChatRoomPage() {
   const roomId = params.roomId as string;
   const router = useRouter();
 
-  const { token, user, logout, hasHydrated } = useAuthStore();
+  const { token, user, updatePreferredLanguage: setStoreLang, logout, hasHydrated } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const {
     messages,
@@ -71,6 +71,7 @@ export default function ChatRoomPage() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [pendingLang, setPendingLang] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const showToast = (msg: string) => {
@@ -109,15 +110,41 @@ export default function ChatRoomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, drafts.length]);
 
-  const handleToggleLanguage = async (newLang: string) => {
-    if (!token || newLang === myLang) return;
+  const handleSelectLanguage = (newLang: string) => {
+    setIsLangDropdownOpen(false);
+    if (newLang === myLang) return;
+    setPendingLang(newLang);
+  };
+
+  const handleConfirmGlobalLanguage = async () => {
+    if (!pendingLang || !token) return;
     try {
-      await setMyLanguage(token, roomId, newLang);
-      setMyLang(newLang);
-      const langName = LANG_NAMES[newLang] || newLang.toUpperCase();
-      showToast(`Speaking: ${langName}`);
+      await setMyLanguage(token, roomId, pendingLang);
+      await updatePreferredLanguage(token, pendingLang);
+      setStoreLang(pendingLang);
+      setMyLang(pendingLang);
+      const langName = LANG_NAMES[pendingLang] || pendingLang.toUpperCase();
+      showToast(`🌐 Set ${langName} as your default language!`);
+    } catch (err) {
+      console.error('Failed to change language:', err);
+      showToast('Failed to update language');
+    } finally {
+      setPendingLang(null);
+    }
+  };
+
+  const handleConfirmRoomOnlyLanguage = async () => {
+    if (!pendingLang || !token) return;
+    try {
+      await setMyLanguage(token, roomId, pendingLang);
+      setMyLang(pendingLang);
+      const langName = LANG_NAMES[pendingLang] || pendingLang.toUpperCase();
+      showToast(`🗣️ Speaking ${langName} in this room.`);
     } catch (err) {
       console.error('Failed to change language seat:', err);
+      showToast('Failed to update room language');
+    } finally {
+      setPendingLang(null);
     }
   };
 
@@ -230,10 +257,7 @@ export default function ChatRoomPage() {
                   {Object.entries(LANG_NAMES).map(([code, name]) => (
                     <button
                       key={code}
-                      onClick={() => {
-                        handleToggleLanguage(code);
-                        setIsLangDropdownOpen(false);
-                      }}
+                      onClick={() => handleSelectLanguage(code)}
                       className={`w-full px-3.5 py-2 text-left flex items-center justify-between hover:bg-[var(--bg-subtle)] transition-colors ${
                         code === myLang ? 'text-[var(--accent)] font-bold' : 'text-[var(--text)]'
                       }`}
@@ -493,6 +517,50 @@ export default function ChatRoomPage() {
                 className="px-4 py-2 rounded-xl bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] text-xs font-semibold hover:opacity-90 transition-all cursor-pointer"
               >
                 Copy Room ID
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Language Preference Confirmation Modal */}
+      {pendingLang && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center text-lg font-bold">
+                🌐
+              </div>
+              <div>
+                <h3 className="font-bold text-[var(--text)] text-base">Change Language</h3>
+                <p className="text-xs text-[var(--muted)]">
+                  Switch speaking language to <span className="font-semibold text-[var(--text)]">{LANG_NAMES[pendingLang] || pendingLang.toUpperCase()}</span>
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-[var(--muted)] leading-relaxed">
+              Would you like to set this as your default language across all rooms, or keep it only for this chat room?
+            </p>
+
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={handleConfirmGlobalLanguage}
+                className="w-full py-2.5 px-4 rounded-xl bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] text-xs font-bold hover:opacity-90 transition-all cursor-pointer shadow-sm"
+              >
+                Yes, set as default for all rooms
+              </button>
+              <button
+                onClick={handleConfirmRoomOnlyLanguage}
+                className="w-full py-2.5 px-4 rounded-xl bg-[var(--bg-subtle)] text-[var(--text)] hover:bg-[var(--card-hover)] border border-[var(--border)] text-xs font-semibold transition-all cursor-pointer"
+              >
+                Only for this room
+              </button>
+              <button
+                onClick={() => setPendingLang(null)}
+                className="w-full py-2 px-4 rounded-xl text-[var(--muted)] hover:text-[var(--text)] text-xs font-medium transition-all cursor-pointer"
+              >
+                Cancel
               </button>
             </div>
           </div>

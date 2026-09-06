@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useThemeStore } from '@/store/useThemeStore';
-import { login, register, getMe, createRoom, joinRoom, listRooms } from '@/lib/api';
+import { login, register, getMe, createRoom, joinRoom, listRooms, updatePreferredLanguage } from '@/lib/api';
 
 const AVAILABLE_LANGUAGES = [
   { code: 'en', name: 'English' },
@@ -35,8 +35,21 @@ function extractRoomId(input: string): string {
 
 export default function HomePage() {
   const router = useRouter();
-  const { token, user, setAuth, logout, hasHydrated } = useAuthStore();
+  const { token, user, setAuth, updatePreferredLanguage: setStoreLang, logout, hasHydrated } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
+
+  const handleLanguageChange = async (newLang: string) => {
+    if (!token) return;
+    try {
+      await updatePreferredLanguage(token, newLang);
+      setStoreLang(newLang);
+      const name = AVAILABLE_LANGUAGES.find((l) => l.code === newLang)?.name || newLang;
+      showToast(`🌐 Preferred language set to ${name}`);
+    } catch (err: any) {
+      console.error('Failed to update preferred language', err);
+      showToast('Failed to update language');
+    }
+  };
 
   // Auth state
   const [email, setEmail] = useState('');
@@ -149,7 +162,8 @@ export default function HomePage() {
     setDashboardError('');
     try {
       const title = newRoomTitle.trim() || 'New Room';
-      const room = await createRoom(token, title, sourceLang, targetLang);
+      const myLang = user?.preferred_language || 'en';
+      const room = await createRoom(token, title, myLang, myLang === 'en' ? 'es' : 'en');
       showToast(`✨ Room "${title}" created`);
       router.push(`/chat/${room.id}`);
     } catch (err: any) {
@@ -375,6 +389,23 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Preferred Language Selector */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--text)]">
+              <span className="text-[var(--muted)] hidden sm:inline">My Language:</span>
+              <select
+                value={user.preferred_language || 'en'}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="bg-transparent text-[var(--text)] font-bold focus:outline-none cursor-pointer"
+                title="Your default preferred language"
+              >
+                {AVAILABLE_LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code} className="bg-[var(--card)] text-[var(--text)]">
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Dark/Light toggle */}
             <button
               onClick={toggleTheme}
@@ -442,55 +473,9 @@ export default function HomePage() {
                     placeholder="e.g. Weekly Meeting"
                     className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-xl px-4 py-3 text-[var(--text)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] transition-all"
                   />
-                </div>
-
-                {/* Language selection with swap button */}
-                <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
-                  <div>
-                    <label className="block text-xs font-bold tracking-wider uppercase text-[var(--muted)] mb-2">
-                      SOURCE LANG
-                    </label>
-                    <select
-                      value={sourceLang}
-                      onChange={(e) => setSourceLang(e.target.value)}
-                      className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-xl px-3.5 py-3 text-[var(--text)] focus:outline-none focus:border-[var(--accent)] cursor-pointer"
-                    >
-                      {AVAILABLE_LANGUAGES.map((l) => (
-                        <option key={l.code} value={l.code} className="bg-[var(--card)] text-[var(--text)]">
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Language Swap Button */}
-                  <button
-                    type="button"
-                    onClick={handleSwapLanguages}
-                    title="Swap languages"
-                    className="w-11 h-11 mb-0.5 rounded-full border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--bg-subtle)] text-[var(--text)] flex items-center justify-center transition-all active:scale-95 shadow-xs"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>
-                    </svg>
-                  </button>
-
-                  <div>
-                    <label className="block text-xs font-bold tracking-wider uppercase text-[var(--muted)] mb-2">
-                      TARGET LANG
-                    </label>
-                    <select
-                      value={targetLang}
-                      onChange={(e) => setTargetLang(e.target.value)}
-                      className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-xl px-3.5 py-3 text-[var(--text)] focus:outline-none focus:border-[var(--accent)] cursor-pointer"
-                    >
-                      {AVAILABLE_LANGUAGES.map((l) => (
-                        <option key={l.code} value={l.code} className="bg-[var(--card)] text-[var(--text)]">
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <p className="text-xs text-[var(--muted)] mt-2">
+                    Omni-language room: your messages are automatically translated for every participant based on their preferred language.
+                  </p>
                 </div>
 
                 <button

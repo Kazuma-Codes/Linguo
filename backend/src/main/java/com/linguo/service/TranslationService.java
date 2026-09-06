@@ -71,19 +71,21 @@ public class TranslationService {
                 .build();
     }
 
+    private final java.util.concurrent.atomic.AtomicInteger currentKeyIndex = new java.util.concurrent.atomic.AtomicInteger(0);
+
     /**
      * Warms up DNS, TCP, and TLS connections to Groq in the background on startup
      * so the very first user message does not experience a cold-start delay.
      */
     @EventListener(ApplicationReadyEvent.class)
     public void warmUp() {
-        String apiKey = appProperties.getGroq().getApiKey();
-        if (apiKey == null || apiKey.isBlank()) {
+        List<String> keys = appProperties.getGroq().getResolvedApiKeys();
+        if (keys.isEmpty()) {
             return;
         }
         Thread.ofVirtual().start(() -> {
             try {
-                log.info("Warming up Groq connection pool...");
+                log.info("Warming up Groq connection pool with {} configured keys...", keys.size());
                 translateText("hi", "en", "es");
                 log.info("Groq warmup completed successfully.");
             } catch (Exception e) {
@@ -104,6 +106,76 @@ public class TranslationService {
             return NAME_TO_CODE.get(clean);
         }
         return clean;
+    }
+
+    /**
+     * Executes an LLM completion request with automatic multi-key and multi-model fallback.
+     * If a key encounters rate limits (HTTP 429) or errors, it switches to the next key in <5ms.
+     */
+    private JsonNode executeGroqPrompt(String prompt) {
+        List<String> apiKeys = appProperties.getGroq().getResolvedApiKeys();
+        if (apiKeys.isEmpty()) {
+            log.warn("No Groq API keys configured. Set GROQ_API_KEYS or GROQ_API_KEY.");
+            return null;
+        }
+
+        // Models to try: Primary (openai/gpt-oss-20b) -> Backup (qwen/qwen3.8-27b)
+        List<String> modelsToTry = new ArrayList<>();
+        String primaryModel = appProperties.getGroq().getModel();
+        String backupModel = appProperties.getGroq().getBackupModel();
+
+        if (primaryModel != null && !primaryModel.isBlank()) {
+            modelsToTry.add(primaryModel);
+        }
+        if (backupModel != null && !backupModel.isBlank() && !backupModel.equals(primaryModel)) {
+            modelsToTry.add(backupModel);
+        }
+
+        String url = appProperties.getGroq().getBaseUrl() + "/chat/completions";
+        int totalKeys = apiKeys.size();
+        int startIndex = Math.floorMod(currentKeyIndex.get(), totalKeys);
+
+        // Try each API key in round-robin/failover order
+        for (int k = 0; k < totalKeys; k++) {
+            int keyIdx = (startIndex + k) % totalKeys;
+            String apiKey = apiKeys.get(keyIdx);
+
+            for (String modelName : modelsToTry) {
+                try {
+                    Map<String, Object> requestBody = Map.of(
+                            "model", modelName,
+                            "messages", List.of(Map.of("role", "user", "content", prompt)),
+                            "response_format", Map.of("type", "json_object"),
+                            "temperature", 0.1,
+                            "max_tokens", 1024
+                    );
+
+                    String responseBody = restClient.post()
+                            .uri(url)
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                            .body(requestBody)
+                            .retrieve()
+                            .body(String.class);
+
+                    if (responseBody != null) {
+                        JsonNode root = objectMapper.readTree(responseBody);
+                        JsonNode choices = root.path("choices");
+                        if (choices.isArray() && !choices.isEmpty()) {
+                            String content = choices.get(0).path("message").path("content").asText();
+                            // Remember working key index
+                            currentKeyIndex.set(keyIdx);
+                            return objectMapper.readTree(content);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Groq request failed with key index {} (model: {}): {}. Fast failover to next key/model...",
+                            keyIdx, modelName, e.getMessage());
+                }
+            }
+        }
+
+        log.error("All {} Groq API keys and models exhausted.", totalKeys);
+        return null;
     }
 
     public String translateText(String text, String sourceLang, String targetLang) {
@@ -136,63 +208,16 @@ public class TranslationService {
                     "Text to translate: " + text;
         }
 
-        String apiKey = appProperties.getGroq().getApiKey();
-        if (apiKey == null || apiKey.isBlank()) {
-            log.warn("GROQ_API_KEY is not set. Returning untranslated text.");
-            return text;
-        }
-
-        // Build list of models to try: Primary (openai/gpt-oss-20b) -> Backup (qwen/qwen3.8-27b)
-        List<String> modelsToTry = new ArrayList<>();
-        String primaryModel = appProperties.getGroq().getModel();
-        String backupModel = appProperties.getGroq().getBackupModel();
-
-        if (primaryModel != null && !primaryModel.isBlank()) {
-            modelsToTry.add(primaryModel);
-        }
-        if (backupModel != null && !backupModel.isBlank() && !backupModel.equals(primaryModel)) {
-            modelsToTry.add(backupModel);
-        }
-
-        String url = appProperties.getGroq().getBaseUrl() + "/chat/completions";
-
-        for (String modelName : modelsToTry) {
-            try {
-                Map<String, Object> requestBody = Map.of(
-                        "model", modelName,
-                        "messages", List.of(Map.of("role", "user", "content", prompt)),
-                        "response_format", Map.of("type", "json_object"),
-                        "temperature", 0.1,
-                        "max_tokens", 1024
-                );
-
-                String responseBody = restClient.post()
-                        .uri(url)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                        .body(requestBody)
-                        .retrieve()
-                        .body(String.class);
-
-                if (responseBody != null) {
-                    JsonNode root = objectMapper.readTree(responseBody);
-                    JsonNode choices = root.path("choices");
-                    if (choices.isArray() && !choices.isEmpty()) {
-                        String content = choices.get(0).path("message").path("content").asText();
-                        JsonNode parsed = objectMapper.readTree(content);
-
-                        if (parsed.hasNonNull("romanized") && !parsed.get("romanized").asText().isBlank()) {
-                            return parsed.get("romanized").asText().trim();
-                        }
-                        if (parsed.hasNonNull("native") && !parsed.get("native").asText().isBlank()) {
-                            return parsed.get("native").asText().trim();
-                        }
-                        if (parsed.hasNonNull("translation") && !parsed.get("translation").asText().isBlank()) {
-                            return parsed.get("translation").asText().trim();
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Translation failed with model {}: {}. Attempting fallback...", modelName, e.getMessage());
+        JsonNode parsed = executeGroqPrompt(prompt);
+        if (parsed != null) {
+            if (parsed.hasNonNull("romanized") && !parsed.get("romanized").asText().isBlank()) {
+                return parsed.get("romanized").asText().trim();
+            }
+            if (parsed.hasNonNull("native") && !parsed.get("native").asText().isBlank()) {
+                return parsed.get("native").asText().trim();
+            }
+            if (parsed.hasNonNull("translation") && !parsed.get("translation").asText().isBlank()) {
+                return parsed.get("translation").asText().trim();
             }
         }
 
@@ -200,56 +225,24 @@ public class TranslationService {
     }
 
     public CulturalFootnotes getCulturalFootnotes(String original, String translated, String targetLang) {
-        String apiKey = appProperties.getGroq().getApiKey();
-        if (apiKey == null || apiKey.isBlank() || original == null || translated == null) {
+        if (original == null || translated == null) {
             return null;
         }
-
 
         String tgtNorm = normLang(targetLang);
         String tgtName = LANG_MAP.getOrDefault(tgtNorm, targetLang);
 
         String prompt = "You are a cultural intelligence expert. Analyze:\n" +
                 "Original: " + original + "\n" +
-                "Translated (" + targetLang + "): " + translated + "\n" +
+                "Translated (" + tgtName + "): " + translated + "\n" +
                 "Return ONLY JSON: {\"humor_explanation\": \"string|null\", \"idiom_breakdown\": \"string|null\", \"etiquette_warning\": \"string|null\"}";
 
-        List<String> modelsToTry = new ArrayList<>();
-        String primaryModel = appProperties.getGroq().getModel();
-        String backupModel = appProperties.getGroq().getBackupModel();
-
-        if (primaryModel != null && !primaryModel.isBlank()) modelsToTry.add(primaryModel);
-        if (backupModel != null && !backupModel.isBlank() && !backupModel.equals(primaryModel)) modelsToTry.add(backupModel);
-
-        String url = appProperties.getGroq().getBaseUrl() + "/chat/completions";
-
-        for (String modelName : modelsToTry) {
+        JsonNode parsed = executeGroqPrompt(prompt);
+        if (parsed != null) {
             try {
-                Map<String, Object> requestBody = Map.of(
-                        "model", modelName,
-                        "messages", List.of(Map.of("role", "user", "content", prompt)),
-                        "response_format", Map.of("type", "json_object"),
-                        "temperature", 0.1,
-                        "max_tokens", 1024
-                );
-
-                String responseBody = restClient.post()
-                        .uri(url)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                        .body(requestBody)
-                        .retrieve()
-                        .body(String.class);
-
-                if (responseBody != null) {
-                    JsonNode root = objectMapper.readTree(responseBody);
-                    JsonNode choices = root.path("choices");
-                    if (choices.isArray() && !choices.isEmpty()) {
-                        String content = choices.get(0).path("message").path("content").asText();
-                        return objectMapper.readValue(content, CulturalFootnotes.class);
-                    }
-                }
+                return objectMapper.treeToValue(parsed, CulturalFootnotes.class);
             } catch (Exception e) {
-                log.warn("Cultural analysis failed with model {}: {}", modelName, e.getMessage());
+                log.warn("Failed to parse cultural footnotes JSON: {}", e.getMessage());
             }
         }
 

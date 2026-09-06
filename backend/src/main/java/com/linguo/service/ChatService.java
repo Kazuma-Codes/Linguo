@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -174,38 +175,50 @@ public class ChatService {
 
             String detectedRaw = languageDetectionService.detectLanguage(msg.getOriginalText());
             String detCode = detectedRaw != null ? translationService.normLang(detectedRaw) : null;
-            String srcCode = translationService.normLang(room.getSourceLang());
-            String tgtCode = translationService.normLang(room.getTargetLang());
             String myCode = participant != null ? translationService.normLang(participant.getLanguage()) : null;
             String prefCode = translationService.normLang(sender.getPreferredLanguage());
-            Set<String> pair = Set.of(srcCode != null ? srcCode : "en", tgtCode != null ? tgtCode : "es");
 
-            // Pick source language
+            // 1. Determine Sender Source Language
             String actualSource;
-
-            if (myCode != null && pair.contains(myCode)) {
-                if (detCode != null && pair.contains(detCode) && !detCode.equals(myCode)) {
+            if (myCode != null && TranslationService.LANG_MAP.containsKey(myCode)) {
+                if (detCode != null && !detCode.equals(myCode) && !detCode.equals("en")) {
                     actualSource = detCode;
                 } else {
                     actualSource = myCode;
                 }
-            } else if (detCode != null && pair.contains(detCode)) {
+            } else if (detCode != null && TranslationService.LANG_MAP.containsKey(detCode)) {
                 actualSource = detCode;
-            } else if (prefCode != null && pair.contains(prefCode)) {
+            } else if (prefCode != null && TranslationService.LANG_MAP.containsKey(prefCode)) {
                 actualSource = prefCode;
             } else {
-                actualSource = srcCode != null ? srcCode : "en";
+                actualSource = "en";
             }
 
-            // Target language is the opposite
+            // 2. Determine Recipient Target Language(s)
+            List<ChatParticipant> allParticipants = participantRepository.findAllByRoomId(room.getId());
+            List<String> listenerLangs = allParticipants.stream()
+                    .filter(p -> !p.getUser().getId().equals(sender.getId()))
+                    .map(p -> translationService.normLang(p.getLanguage()))
+                    .filter(lang -> lang != null && TranslationService.LANG_MAP.containsKey(lang))
+                    .distinct()
+                    .toList();
+
             String actualTarget;
-            if (pair.contains(actualSource)) {
-                actualTarget = actualSource.equals(srcCode) ? tgtCode : srcCode;
+            if (!listenerLangs.isEmpty()) {
+                // If there are other participants, translate to the recipient's language
+                actualTarget = listenerLangs.get(0);
             } else {
-                actualTarget = tgtCode;
+                // When user is alone in the room, fallback to the user's own preferred language
+                if (prefCode != null && !prefCode.equals(actualSource)) {
+                    actualTarget = prefCode;
+                } else if ("en".equals(actualSource)) {
+                    actualTarget = "es";
+                } else {
+                    actualTarget = "en";
+                }
             }
 
-            msg.setDetectedLang(detCode);
+            msg.setDetectedLang(detCode != null ? detCode : actualSource);
 
             // Step 1: Translate
             String translated = translationService.translateText(msg.getOriginalText(), actualSource, actualTarget);

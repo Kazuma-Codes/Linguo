@@ -37,36 +37,23 @@ public class RoomService {
     }
 
     private String assignSeat(ChatRoom room, User user, boolean isCreator) {
-        String src = norm(room.getSourceLang());
-        String tgt = norm(room.getTargetLang());
-        Set<String> pair = Set.of(src != null ? src : "en", tgt != null ? tgt : "es");
         String pref = norm(user.getPreferredLanguage());
-
-        if (isCreator) {
-            return (pref != null && pair.contains(pref)) ? pref : (src != null ? src : "en");
-        }
-
-        ChatParticipant creatorPart = participantRepository
-                .findByRoomIdAndUserId(room.getId(), room.getCreator().getId())
-                .orElse(null);
-
-        String creatorSeat = creatorPart != null ? norm(creatorPart.getLanguage()) : null;
-
-        if (pref != null && pair.contains(pref) && !pref.equals(creatorSeat)) {
+        if (pref != null && TranslationService.LANG_MAP.containsKey(pref)) {
             return pref;
         }
-        if (creatorSeat != null && pair.contains(creatorSeat)) {
-            return creatorSeat.equals(src) ? tgt : src;
-        }
-        return tgt != null ? tgt : "es";
+        String src = norm(room.getSourceLang());
+        return src != null ? src : "en";
     }
 
     @Transactional
     public RoomResponse createRoom(RoomCreateRequest request, User currentUser) {
+        String defaultSrc = currentUser.getPreferredLanguage() != null ? currentUser.getPreferredLanguage() : "en";
+        String defaultTgt = request.getTargetLang() != null ? request.getTargetLang() : "es";
+
         ChatRoom room = ChatRoom.builder()
-                .title(request.getTitle())
-                .sourceLang(request.getSourceLang() != null ? request.getSourceLang() : "en")
-                .targetLang(request.getTargetLang())
+                .title(request.getTitle() != null && !request.getTitle().isBlank() ? request.getTitle().trim() : "New Room")
+                .sourceLang(request.getSourceLang() != null ? request.getSourceLang() : defaultSrc)
+                .targetLang(defaultTgt)
                 .creator(currentUser)
                 .build();
 
@@ -161,9 +148,8 @@ public class RoomService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
 
         String normNew = norm(newLanguage);
-        Set<String> pair = Set.of(norm(room.getSourceLang()), norm(room.getTargetLang()));
-        if (!pair.contains(normNew)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Language not part of this room");
+        if (normNew == null || !TranslationService.LANG_MAP.containsKey(normNew)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported language code: " + newLanguage);
         }
 
         ChatParticipant participant = participantRepository.findByRoomIdAndUserId(roomId, currentUser.getId())

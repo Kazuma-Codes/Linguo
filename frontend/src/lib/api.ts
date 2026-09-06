@@ -91,12 +91,24 @@ export async function getMe(token: string) {
   });
 }
 
+/** Update the current user's default preferred language in the database. */
+export async function updatePreferredLanguage(token: string, preferred_language: string) {
+  return apiFetch('/auth/preferred-language', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ preferred_language }),
+  });
+}
+
 /** Create a new translation room. */
 export async function createRoom(
   token: string,
   title: string,
-  source_lang: string,
-  target_lang: string,
+  source_lang?: string,
+  target_lang?: string,
 ) {
   return apiFetch('/rooms', {
     method: 'POST',
@@ -104,7 +116,11 @@ export async function createRoom(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ title, source_lang, target_lang }),
+    body: JSON.stringify({
+      title,
+      source_lang: source_lang || 'en',
+      target_lang: target_lang || 'es',
+    }),
   });
 }
 

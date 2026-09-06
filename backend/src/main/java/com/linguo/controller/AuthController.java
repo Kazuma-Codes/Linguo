@@ -53,6 +53,14 @@ public class AuthController {
         return authService.toUserResponse(currentUser);
     }
 
+    @PatchMapping("/preferred-language")
+    public UserResponse updatePreferredLanguage(
+            @Valid @RequestBody com.linguo.model.dto.UpdatePreferredLanguageRequest request,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        return authService.updatePreferredLanguage(currentUser, request.getPreferredLanguage());
+    }
+
     private String firstNonBlank(String first, String second) {
         return first != null && !first.isBlank() ? first : second;
     }

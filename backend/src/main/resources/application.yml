@@ -62,8 +62,12 @@ app:
   jwt:
     secret: ${SECRET_KEY}
     expiration-minutes: ${ACCESS_TOKEN_EXPIRE_MINUTES:10080}
+  # Groq Cloud AI configuration with multi-key and multi-model fallback
   groq:
-    api-key: ${GROQ_API_KEY}
+    api-key: ${GROQ_API_KEYS:${GROQ_API_KEY:}}
+    api-key1: ${GROQ_API_KEY_1:}
+    api-key2: ${GROQ_API_KEY_2:}
+    api-key3: ${GROQ_API_KEY_3:}
     base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
     model: ${GROQ_MODEL:openai/gpt-oss-20b}
     backup-model: ${GROQ_BACKUP_MODEL:qwen/qwen3.8-27b}
