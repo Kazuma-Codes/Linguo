@@ -33,6 +33,13 @@ spring:
   data:
     redis:
       url: ${REDIS_URL}
+      repositories:
+        enabled: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
 
 management:
   endpoints:
