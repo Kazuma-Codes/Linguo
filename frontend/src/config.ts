@@ -5,8 +5,11 @@
  * Set NEXT_PUBLIC_API_URL and NEXT_PUBLIC_WS_URL for production.
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8000';
+const rawBackend = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const rawWs = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8000';
+
+const BACKEND_URL = rawBackend.replace(/\/+$/, '');
+const WS_URL = rawWs.replace(/\/+$/, '');
 
 /** Backend REST API base URL (e.g. "https://your-app.onrender.com/api/v1") */
 export const API_BASE_URL = BACKEND_URL.endsWith('/api/v1') ? BACKEND_URL : `${BACKEND_URL}/api/v1`;

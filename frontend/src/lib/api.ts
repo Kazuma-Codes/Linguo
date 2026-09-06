@@ -7,6 +7,7 @@
  */
 
 import { API_BASE_URL } from '@/config';
+import { useAuthStore } from '@/store/useAuthStore';
 
 /** Error class carrying the HTTP status code for easy branching in UI code. */
 class ApiError extends Error {
@@ -40,6 +41,13 @@ async function apiFetch(path: string, options: RequestInit = {}, retries = 1): P
       detail = body.message ?? body.detail ?? detail;
     } catch {
       // response wasn't JSON — keep generic message
+    }
+    // Auto-logout if token is expired or invalid
+    if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
+      const headers = options.headers as Record<string, string> | undefined;
+      if (headers && (headers['Authorization'] || headers['authorization'])) {
+        useAuthStore.getState().logout();
+      }
     }
     throw new ApiError(detail, res.status);
   }

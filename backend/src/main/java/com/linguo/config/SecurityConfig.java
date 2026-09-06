@@ -41,6 +41,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/",
                                 "/api/v1/auth/register",
@@ -52,6 +53,9 @@ public class SecurityConfig {
                                 "/api/v1/ws/**"
                         ).permitAll()
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(new org.springframework.security.web.authentication.HttpStatusEntryPoint(org.springframework.http.HttpStatus.UNAUTHORIZED))
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -65,12 +69,19 @@ public class SecurityConfig {
         if (origins != null && !origins.isEmpty()) {
             for (String origin : origins) {
                 if (origin != null && !origin.isBlank()) {
-                    configuration.addAllowedOriginPattern(origin.trim());
+                    String cleanOrigin = origin.trim().replaceAll("/+$", "");
+                    configuration.addAllowedOriginPattern(cleanOrigin);
                 }
             }
         }
+        // Always permit local development and Vercel deployments by default
+        configuration.addAllowedOriginPattern("https://*.vercel.app");
+        configuration.addAllowedOriginPattern("http://localhost:[*]");
+        configuration.addAllowedOriginPattern("http://127.0.0.1:[*]");
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Link", "X-Total-Count"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
