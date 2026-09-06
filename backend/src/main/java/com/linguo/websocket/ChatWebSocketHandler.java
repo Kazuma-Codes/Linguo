@@ -1,10 +1,13 @@
+
 package com.linguo.websocket;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linguo.config.JwtService;
 import com.linguo.model.dto.WsIncomingMessage;
 import com.linguo.model.entity.User;
 import com.linguo.repository.ChatRoomRepository;
+import com.linguo.repository.ChatParticipantRepository;
 import com.linguo.repository.UserRepository;
 import com.linguo.service.ChatService;
 import com.linguo.service.RedisPubSubService;
@@ -17,6 +20,9 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,6 +34,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final ChatRoomRepository roomRepository;
+    private final ChatParticipantRepository participantRepository;
     private final ChatService chatService;
     private final RedisPubSubService redisPubSubService;
     private final ObjectMapper objectMapper;
@@ -38,12 +45,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public ChatWebSocketHandler(JwtService jwtService,
                                 UserRepository userRepository,
                                 ChatRoomRepository roomRepository,
+                                ChatParticipantRepository participantRepository,
                                 ChatService chatService,
                                 RedisPubSubService redisPubSubService,
                                 ObjectMapper objectMapper) {
         this.jwtService = jwtService;
         this.userRepository = userRepository;
         this.roomRepository = roomRepository;
+        this.participantRepository = participantRepository;
         this.chatService = chatService;
         this.redisPubSubService = redisPubSubService;
         this.objectMapper = objectMapper;
@@ -76,7 +85,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
 
         Optional<User> userOpt = userRepository.findByEmail(emailOpt.get());
-        if (userOpt.isEmpty()) {
+        if (userOpt.isEmpty() || !Boolean.TRUE.equals(userOpt.get().getIsActive())) {
             log.warn("WebSocket connection rejected: user not found");
             session.close(CloseStatus.POLICY_VIOLATION);
             return;
@@ -90,6 +99,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 session.close(CloseStatus.SERVER_ERROR);
                 return;
             }
+            if (!participantRepository.existsByRoomIdAndUserId(roomId, userOpt.get().getId())) {
+                log.warn("WebSocket connection rejected: user is not a room participant");
+                session.close(CloseStatus.POLICY_VIOLATION);
+                return;
+            }
         } catch (IllegalArgumentException e) {
             log.warn("WebSocket connection rejected: invalid room UUID format: {}", roomIdStr);
             session.close(CloseStatus.BAD_DATA);
@@ -98,10 +112,10 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
         User user = userOpt.get();
         session.getAttributes().put(ATTR_USER, user);
-        session.getAttributes().put(ATTR_ROOM_ID, roomIdStr);
+        session.getAttributes().put(ATTR_ROOM_ID, roomId.toString());
 
-        redisPubSubService.addSession(roomIdStr, session);
-        log.info("WebSocket connected for user {} in room {}", user.getEmail(), roomIdStr);
+        redisPubSubService.addSession(roomId.toString(), session);
+        log.info("WebSocket connected for user {} in room {}", user.getEmail(), roomId);
     }
 
     @Override
@@ -115,9 +129,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
         try {
             WsIncomingMessage incoming = objectMapper.readValue(message.getPayload(), WsIncomingMessage.class);
-            if (incoming == null || incoming.getType() == null) {
-                return;
-            }
+            validateIncoming(incoming);
 
             switch (incoming.getType()) {
                 case "ping" -> {
@@ -128,10 +140,17 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 case "send_draft" -> chatService.handleSendDraft(roomId, incoming.getText(), user);
                 case "confirm_draft" -> chatService.handleConfirmDraft(roomId, incoming.getId(), incoming.getEditedText(), user);
                 case "send_message", "direct_send" -> chatService.handleDirectSend(roomId, incoming.getText(), user);
-                default -> log.debug("Unhandled incoming message type: {}", incoming.getType());
+                default -> throw new IllegalArgumentException("Unsupported message type");
+            }
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            log.warn("Rejected malformed WebSocket payload for session {}: {}", session.getId(), e.getMessage());
+            sendError(session, "invalid_payload", "Malformed or invalid message");
+            if (session.isOpen()) {
+                session.close(CloseStatus.BAD_DATA);
             }
         } catch (Exception e) {
-            log.warn("Failed to process WebSocket text message: {}", e.getMessage());
+            log.error("WebSocket message processing failed for session {}", session.getId(), e);
+            sendError(session, "server_error", "Unable to process message");
         }
     }
 
@@ -171,9 +190,57 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         for (String param : query.split("&")) {
             String[] pair = param.split("=", 2);
             if (pair.length == 2 && "token".equals(pair[0])) {
-                return pair[1];
+                try {
+                    return URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException exception) {
+                    return null;
+                }
             }
         }
         return null;
+    }
+
+    private void validateIncoming(WsIncomingMessage incoming) {
+        if (incoming == null || incoming.getType() == null || incoming.getType().isBlank()) {
+            throw new IllegalArgumentException("Message type is required");
+        }
+        switch (incoming.getType()) {
+            case "ping" -> {
+                if (incoming.getText() != null || incoming.getId() != null || incoming.getEditedText() != null) {
+                    throw new IllegalArgumentException("Ping payload must not contain message fields");
+                }
+            }
+            case "send_draft", "send_message", "direct_send" -> {
+                if (incoming.getText() == null || incoming.getText().isBlank() || incoming.getText().length() > 10000) {
+                    throw new IllegalArgumentException("Text is required");
+                }
+            }
+            case "confirm_draft" -> {
+                if (incoming.getId() == null || incoming.getId().isBlank()) {
+                    throw new IllegalArgumentException("Message id is required");
+                }
+                try {
+                    UUID.fromString(incoming.getId());
+                } catch (IllegalArgumentException exception) {
+                    throw new IllegalArgumentException("Message id must be a UUID");
+                }
+                if (incoming.getEditedText() != null && incoming.getEditedText().length() > 10000) {
+                    throw new IllegalArgumentException("Edited text is too long");
+                }
+            }
+            default -> throw new IllegalArgumentException("Unsupported message type");
+        }
+    }
+
+    private void sendError(WebSocketSession session, String code, String message) {
+        if (!session.isOpen()) {
+            return;
+        }
+        try {
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(
+                    Map.of("type", "error", "code", code, "message", message))));
+        } catch (Exception sendException) {
+            log.debug("Unable to send WebSocket error response for session {}", session.getId(), sendException);
+        }
     }
 }

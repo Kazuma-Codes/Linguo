@@ -47,7 +47,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/login",
                                 "/health",
                                 "/api/v1/health",
-                                "/actuator/**",
+                                "/actuator/health",
+                                "/actuator/health/**",
                                 "/api/v1/ws/**"
                         ).permitAll()
                         .anyRequest().authenticated()
@@ -68,12 +69,6 @@ public class SecurityConfig {
                 }
             }
         }
-        // Automatically allow any Vercel deployments and localhost
-        configuration.addAllowedOriginPattern("https://*.vercel.app");
-        configuration.addAllowedOriginPattern("https://linguofrontend.vercel.app");
-        configuration.addAllowedOriginPattern("http://localhost:*");
-        configuration.addAllowedOriginPattern("http://127.0.0.1:*");
-
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
         configuration.setAllowCredentials(true);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useThemeStore } from '@/store/useThemeStore';
 import { login, register, getMe, createRoom, joinRoom, listRooms } from '@/lib/api';
@@ -212,9 +213,12 @@ export default function HomePage() {
         {/* LEFT ART PANEL (Editorial Style, Static image without motion animation) */}
         <aside className="relative hidden lg:block overflow-hidden bg-[#1C1917]">
           {/* Static high-resolution image */}
-          <img
-            src="https://image.qwenlm.ai/public_source/6f898c32-8385-4259-95bc-c9af1efa37f4/1db0a56e5-1527-4e22-bd33-1401fd4de67a.png"
+          <Image
+            src="/auth-art.png"
             alt="People around the world greeting each other in many languages"
+            fill
+            priority
+            sizes="(min-width: 1024px) 50vw, 0px"
             className="w-full h-full object-cover select-none pointer-events-none"
           />
 

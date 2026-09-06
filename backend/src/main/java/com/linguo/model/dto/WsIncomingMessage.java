@@ -1,14 +1,17 @@
 package com.linguo.model.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.Size;
 
 public class WsIncomingMessage {
 
     private String type;
+    @Size(max = 10000)
     private String text;
     private String id;
 
     @JsonProperty("edited_text")
+    @Size(max = 10000)
     private String editedText;
 
     public WsIncomingMessage() {}

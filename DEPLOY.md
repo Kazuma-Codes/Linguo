@@ -1,4 +1,9 @@
-# Deploy to Render & Vercel (Free Tier)
+# Deploy to Render & Vercel
+
+This deployment path is intended for a hardened single-instance MVP.
+PostgreSQL is the source of truth, while Redis is required for realtime
+fan-out and coordination. Do not use the free-tier setup for workloads that
+require guaranteed availability or strict latency objectives.
 
 ## Prerequisites
 
@@ -39,7 +44,7 @@
 2. Connect your GitHub repo
 3. Settings:
    - **Name:** `linguo-backend`
-   - **Root Directory:** `backend`
+   - **Root Directory:** repository root
    - **Runtime:** `Docker`
    - **Instance Type:** Free
 4. Add Environment Variables:
@@ -51,6 +56,10 @@
    ALLOWED_ORIGINS       = https://linguo-frontend.vercel.app,http://localhost:3000
    ```
 5. Click "Create Web Service"
+
+The repository-root `render.yaml` uses `backend/Dockerfile` with the repository
+root as its Docker context. If configuring the service manually, use the same
+Dockerfile and context so the build remains consistent with CI.
 
 ---
 
@@ -76,3 +85,22 @@
    https://linguo-frontend.vercel.app,http://localhost:3000
    ```
 3. Backend will auto-redeploy.
+
+## Production checklist
+
+- Use a unique randomly generated `SECRET_KEY`; never commit it.
+- Set `ALLOWED_ORIGINS` to the exact Vercel origin(s), not `*`.
+- Configure `DATABASE_URL`, `REDIS_URL`, and `GROQ_API_KEY` as Render secrets.
+- Verify health, readiness, metrics access, REST authentication, and WebSocket
+  connectivity after deployment.
+- Take a PostgreSQL backup before schema migrations and record the release
+  version for rollback.
+- Treat a failed migration or readiness check as a deployment failure.
+
+## Rollback
+
+1. Roll back the Render service to the last known-good release.
+2. Restore the previous Vercel deployment if the API contract changed.
+3. Do not automatically reverse a database migration; use its forward-fix or
+   documented restore procedure after taking a fresh backup.
+4. Re-check health, authentication, room access, and WebSocket connectivity.

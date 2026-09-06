@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/translate_app
+    username: user
+    password: password
+  data:
+    redis:
+      url: redis://localhost:6379
+  jpa:
+    hibernate:
+      ddl-auto: update
+  flyway:
+    enabled: false
+
+app:
+  jwt:
+    secret: ${SECRET_KEY:local-development-secret-key-change-me-123456789}
+  groq:
+    api-key: ${GROQ_API_KEY:local-development-key}
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://127.0.0.1:3000

@@ -11,14 +11,18 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final ChatWebSocketHandler chatWebSocketHandler;
+    private final AppProperties appProperties;
 
-    public WebSocketConfig(ChatWebSocketHandler chatWebSocketHandler) {
+    public WebSocketConfig(ChatWebSocketHandler chatWebSocketHandler, AppProperties appProperties) {
         this.chatWebSocketHandler = chatWebSocketHandler;
+        this.appProperties = appProperties;
     }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(chatWebSocketHandler, "/api/v1/ws/chat/{roomId}")
-                .setAllowedOriginPatterns("*");
+                .setAllowedOriginPatterns(
+                        appProperties.getCors().getAllowedOrigins().toArray(String[]::new)
+                );
     }
 }

@@ -19,16 +19,13 @@ public class DataSourceConfig {
 
     private static final Logger log = LoggerFactory.getLogger(DataSourceConfig.class);
 
-    @Value("${DATABASE_URL:}")
-    private String databaseUrlEnv;
-
-    @Value("${spring.datasource.url:jdbc:postgresql://localhost:5432/translate_app}")
+    @Value("${spring.datasource.url}")
     private String defaultUrl;
 
-    @Value("${spring.datasource.username:user}")
+    @Value("${spring.datasource.username:}")
     private String defaultUser;
 
-    @Value("${spring.datasource.password:password}")
+    @Value("${spring.datasource.password:}")
     private String defaultPassword;
 
     @Bean
@@ -37,7 +34,7 @@ public class DataSourceConfig {
         HikariConfig config = new HikariConfig();
         config.setDriverClassName("org.postgresql.Driver");
 
-        String rawUrl = (databaseUrlEnv != null && !databaseUrlEnv.isBlank()) ? databaseUrlEnv.trim() : defaultUrl.trim();
+        String rawUrl = defaultUrl.trim();
 
         if (rawUrl.startsWith("postgres://") || rawUrl.startsWith("postgresql://")) {
             try {
@@ -58,22 +55,23 @@ public class DataSourceConfig {
                     config.setUsername(user);
                     config.setPassword(pass);
                 } else {
+                    requireCredentials();
                     config.setUsername(defaultUser);
                     config.setPassword(defaultPassword);
                 }
                 log.info("Configured PostgreSQL DataSource connecting to host={}:{}, database={}", host, port, path);
             } catch (Exception e) {
-                log.warn("Failed to parse URI from DATABASE_URL, falling back to direct string: {}", e.getMessage());
-                String jdbcUrl = rawUrl.startsWith("jdbc:") ? rawUrl : "jdbc:" + rawUrl;
-                config.setJdbcUrl(jdbcUrl);
-                config.setUsername(defaultUser);
-                config.setPassword(defaultPassword);
+                throw new IllegalStateException("Invalid PostgreSQL datasource URL", e);
             }
         } else {
+            if (!rawUrl.startsWith("jdbc:postgresql:")) {
+                throw new IllegalStateException("Datasource URL must be a PostgreSQL JDBC or PostgreSQL URI");
+            }
+            requireCredentials();
             config.setJdbcUrl(rawUrl);
             config.setUsername(defaultUser);
             config.setPassword(defaultPassword);
-            log.info("Configured PostgreSQL DataSource using standard URL: {}", rawUrl);
+            log.info("Configured PostgreSQL DataSource using configured JDBC URL");
         }
 
         config.setMaximumPoolSize(10);
@@ -81,5 +79,11 @@ public class DataSourceConfig {
         config.setConnectionTimeout(30000);
         config.setValidationTimeout(5000);
         return new HikariDataSource(config);
+    }
+
+    private void requireCredentials() {
+        if (defaultUser == null || defaultUser.isBlank() || defaultPassword == null || defaultPassword.isBlank()) {
+            throw new IllegalStateException("PostgreSQL username and password must be configured when not embedded in DATABASE_URL");
+        }
     }
 }

@@ -14,7 +14,7 @@ import java.net.URI;
 @Configuration
 public class RedisConfig {
 
-    @Value("${REDIS_URL:redis://localhost:6379}")
+    @Value("${spring.data.redis.url}")
     private String redisUrl;
 
     @Bean
@@ -22,7 +22,13 @@ public class RedisConfig {
         try {
             if (redisUrl != null && !redisUrl.isBlank()) {
                 URI uri = new URI(redisUrl);
-                String host = uri.getHost() != null ? uri.getHost() : "localhost";
+                if (!"redis".equalsIgnoreCase(uri.getScheme()) && !"rediss".equalsIgnoreCase(uri.getScheme())) {
+                    throw new IllegalArgumentException("Redis URL must use redis:// or rediss://");
+                }
+                if (uri.getHost() == null || uri.getHost().isBlank()) {
+                    throw new IllegalArgumentException("Redis URL host is missing");
+                }
+                String host = uri.getHost();
                 int port = uri.getPort() != -1 ? uri.getPort() : 6379;
                 RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(host, port);
 
@@ -46,9 +52,10 @@ public class RedisConfig {
 
                 return new LettuceConnectionFactory(config);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            throw new IllegalStateException("Invalid Redis URL", e);
         }
-        return new LettuceConnectionFactory();
+        throw new IllegalStateException("Redis URL must be configured");
     }
 
     @Bean

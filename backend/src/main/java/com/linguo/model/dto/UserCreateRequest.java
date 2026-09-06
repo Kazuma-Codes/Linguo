@@ -16,6 +16,7 @@ public class UserCreateRequest {
     private String password;
 
     @JsonProperty("preferred_language")
+    @Size(max = 50, message = "Preferred language must be at most 50 characters")
     private String preferredLanguage = "en";
 
     public UserCreateRequest() {}
