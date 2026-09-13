@@ -16,6 +16,3 @@ export const API_BASE_URL = BACKEND_URL.endsWith('/api/v1') ? BACKEND_URL : `${B
 
 /** Backend WebSocket base URL (e.g. "wss://your-app.onrender.com") */
 export const WS_BASE_URL = WS_URL;
-
-/** MinIO object storage base URL */
-export const MINIO_BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL ?? 'http://localhost:9000';

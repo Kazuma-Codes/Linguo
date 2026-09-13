@@ -6,7 +6,7 @@ A high-performance real-time chat application with live bidirectional AI transla
 - **Backend:** Spring Boot 3.4 (Java 21/25), Virtual Threads, Spring Security (JWT + BCrypt), Spring Data JPA, Spring WebSocket, Spring Data Redis
 - **Frontend:** Next.js 14, React, TypeScript, Zustand, Tailwind CSS
 - **Database & Cache:** Cloud PostgreSQL (Neon / Supabase), Cloud Redis (Upstash)
-- **AI Translation:** Groq API (`llama-3.1-8b-instant`)
+- **AI Translation:** Groq API (`openai/gpt-oss-20b`, fallback `openai/gpt-oss-120b`)
 
 ---
 

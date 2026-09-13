@@ -3,6 +3,8 @@ package com.linguo.model.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Map;
+
 @JsonInclude(JsonInclude.Include.ALWAYS)
 public class WsOutgoingMessage {
 
@@ -26,6 +28,9 @@ public class WsOutgoingMessage {
     @JsonProperty("cultural_footnotes")
     private Object culturalFootnotes;
 
+    @JsonProperty("translations")
+    private Map<String, String> translations;
+
     private String status;
 
     @JsonProperty("tts_url")
@@ -36,7 +41,7 @@ public class WsOutgoingMessage {
 
     public WsOutgoingMessage() {}
 
-    public WsOutgoingMessage(String type, String id, String senderEmail, String text, String originalText, String translatedText, String detectedLang, Object culturalFootnotes, String status, String ttsUrl, String audioUrl) {
+    public WsOutgoingMessage(String type, String id, String senderEmail, String text, String originalText, String translatedText, String detectedLang, Object culturalFootnotes, Map<String, String> translations, String status, String ttsUrl, String audioUrl) {
         this.type = type;
         this.id = id;
         this.senderEmail = senderEmail;
@@ -45,6 +50,7 @@ public class WsOutgoingMessage {
         this.translatedText = translatedText;
         this.detectedLang = detectedLang;
         this.culturalFootnotes = culturalFootnotes;
+        this.translations = translations;
         this.status = status;
         this.ttsUrl = ttsUrl;
         this.audioUrl = audioUrl;
@@ -61,6 +67,7 @@ public class WsOutgoingMessage {
         private String translatedText;
         private String detectedLang;
         private Object culturalFootnotes;
+        private Map<String, String> translations;
         private String status;
         private String ttsUrl;
         private String audioUrl;
@@ -73,12 +80,13 @@ public class WsOutgoingMessage {
         public Builder translatedText(String translatedText) { this.translatedText = translatedText; return this; }
         public Builder detectedLang(String detectedLang) { this.detectedLang = detectedLang; return this; }
         public Builder culturalFootnotes(Object culturalFootnotes) { this.culturalFootnotes = culturalFootnotes; return this; }
+        public Builder translations(Map<String, String> translations) { this.translations = translations; return this; }
         public Builder status(String status) { this.status = status; return this; }
         public Builder ttsUrl(String ttsUrl) { this.ttsUrl = ttsUrl; return this; }
         public Builder audioUrl(String audioUrl) { this.audioUrl = audioUrl; return this; }
 
         public WsOutgoingMessage build() {
-            return new WsOutgoingMessage(type, id, senderEmail, text, originalText, translatedText, detectedLang, culturalFootnotes, status, ttsUrl, audioUrl);
+            return new WsOutgoingMessage(type, id, senderEmail, text, originalText, translatedText, detectedLang, culturalFootnotes, translations, status, ttsUrl, audioUrl);
         }
     }
 
@@ -98,6 +106,8 @@ public class WsOutgoingMessage {
     public void setDetectedLang(String detectedLang) { this.detectedLang = detectedLang; }
     public Object getCulturalFootnotes() { return culturalFootnotes; }
     public void setCulturalFootnotes(Object culturalFootnotes) { this.culturalFootnotes = culturalFootnotes; }
+    public Map<String, String> getTranslations() { return translations; }
+    public void setTranslations(Map<String, String> translations) { this.translations = translations; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getTtsUrl() { return ttsUrl; }

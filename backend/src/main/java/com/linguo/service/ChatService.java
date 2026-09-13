@@ -20,10 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ChatService {
@@ -165,6 +167,13 @@ public class ChatService {
                 return;
             }
 
+            // The draft may have been confirmed while this task sat in the queue;
+            // never spend Groq calls on a message that is already final.
+            if ("final".equals(messageRepository.findStatusById(messageId).orElse(null))) {
+                log.info("Message {} already finalized before translation started; skipping", messageId);
+                return;
+            }
+
             ChatRoom room = msg.getRoom();
             User sender = msg.getSender();
             String roomIdStr = room.getId().toString();
@@ -218,50 +227,83 @@ public class ChatService {
                 }
             }
 
-            msg.setDetectedLang(detCode != null ? detCode : actualSource);
+            String original = msg.getOriginalText();
 
-            // Step 1: Translate
-            String translated = translationService.translateText(msg.getOriginalText(), actualSource, actualTarget);
+            // Step 1: Translate to the primary target language
+            String translated = translationService.translateText(original, actualSource, actualTarget);
             if (translated == null || translated.isBlank()) {
-                translated = msg.getOriginalText();
+                translated = original;
             }
-            msg.setTranslatedText(translated);
-            msg = messageRepository.saveAndFlush(msg);
+
+            // Step 2: Translate once per listener language (parallel on virtual threads)
+            // so every participant receives the message in their own seat language.
+            Map<String, String> translations = new ConcurrentHashMap<>();
+            if (!listenerLangs.isEmpty()) {
+                translations.put(actualTarget, translated);
+                List<Thread> extraLangJobs = new ArrayList<>();
+                for (String lang : listenerLangs) {
+                    if (lang.equals(actualTarget)) continue;
+                    extraLangJobs.add(Thread.ofVirtual().start(() -> {
+                        String perLang = translationService.translateText(original, actualSource, lang);
+                        if (perLang != null && !perLang.isBlank()) {
+                            translations.put(lang, perLang);
+                        }
+                    }));
+                }
+                for (Thread job : extraLangJobs) {
+                    job.join();
+                }
+            }
+            String translationsJson = translations.isEmpty() ? null : objectMapper.writeValueAsString(translations);
+
+            // Step 3: Apply atomically while the message is still a draft, so a
+            // concurrent confirm_draft with a user-edited translation is never overwritten.
+            int updated = messageRepository.applyTranslationIfDraft(
+                    messageId, translated, detCode != null ? detCode : actualSource, translationsJson);
+            if (updated == 0) {
+                log.info("Message {} was finalized during translation; discarding AI result", messageId);
+                return;
+            }
 
             WsOutgoingMessage translatedDraft = WsOutgoingMessage.builder()
                     .type("draft_ready")
-                    .id(msg.getId().toString())
+                    .id(messageId.toString())
                     .senderEmail(sender.getEmail())
-                    .originalText(msg.getOriginalText())
-                    .text(msg.getOriginalText())
+                    .originalText(original)
+                    .text(original)
                     .translatedText(translated)
                     .detectedLang(detCode)
+                    .translations(translations.isEmpty() ? null : translations)
                     .status("draft")
                     .build();
 
             redisPubSubService.publish(roomIdStr, translatedDraft);
 
-            // Step 2: Cultural footnotes
+            // Step 4: Cultural footnotes
             try {
                 CulturalFootnotes footnotes = translationService.getCulturalFootnotes(
-                        msg.getOriginalText(),
+                        original,
                         translated,
                         actualTarget
                 );
 
                 if (footnotes != null) {
-                    msg.setCulturalFootnotes(objectMapper.writeValueAsString(footnotes));
-                    messageRepository.saveAndFlush(msg);
+                    int footnotesUpdated = messageRepository.applyFootnotesIfDraft(
+                            messageId, objectMapper.writeValueAsString(footnotes));
+                    if (footnotesUpdated == 0) {
+                        return; // finalized while footnotes were being generated
+                    }
 
                     WsOutgoingMessage footnotesDraft = WsOutgoingMessage.builder()
                             .type("draft_ready")
-                            .id(msg.getId().toString())
+                            .id(messageId.toString())
                             .senderEmail(sender.getEmail())
-                            .originalText(msg.getOriginalText())
-                            .text(msg.getOriginalText())
+                            .originalText(original)
+                            .text(original)
                             .translatedText(translated)
                             .detectedLang(detCode)
                             .culturalFootnotes(footnotes)
+                            .translations(translations.isEmpty() ? null : translations)
                             .status("draft")
                             .build();
 
@@ -277,8 +319,11 @@ public class ChatService {
             try {
                 Message fallbackMsg = messageRepository.findById(messageId).orElse(null);
                 if (fallbackMsg != null) {
-                    fallbackMsg.setTranslatedText(fallbackMsg.getOriginalText());
-                    messageRepository.saveAndFlush(fallbackMsg);
+                    int updated = messageRepository.applyTranslationIfDraft(
+                            messageId, fallbackMsg.getOriginalText(), fallbackMsg.getDetectedLang(), null);
+                    if (updated == 0) {
+                        return; // already finalized — do not clobber the confirmed text
+                    }
 
                     WsOutgoingMessage fallbackDraft = WsOutgoingMessage.builder()
                             .type("draft_ready")
@@ -324,6 +369,14 @@ public class ChatService {
             }
         }
 
+        Map<String, String> parsedTranslations = null;
+        if (msg.getTranslations() != null && !msg.getTranslations().isBlank()) {
+            try {
+                parsedTranslations = objectMapper.readValue(msg.getTranslations(), new TypeReference<Map<String, String>>() {});
+            } catch (Exception ignored) {
+            }
+        }
+
         WsOutgoingMessage finalizedMsg = WsOutgoingMessage.builder()
                 .type("message_finalized")
                 .id(msg.getId().toString())
@@ -333,6 +386,7 @@ public class ChatService {
                 .translatedText(msg.getTranslatedText())
                 .detectedLang(msg.getDetectedLang())
                 .culturalFootnotes(parsedFootnotes)
+                .translations(parsedTranslations)
                 .status("final")
                 .ttsUrl(msg.getTtsUrl())
                 .audioUrl(msg.getAudioUrl())

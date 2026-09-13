@@ -114,8 +114,8 @@ export default function HomePage() {
       setAuthError('Password is required.');
       return;
     }
-    if (password.length < 6) {
-      setAuthError('Password must be at least 6 characters.');
+    if (password.length < 8) {
+      setAuthError('Password must be at least 8 characters.');
       return;
     }
 

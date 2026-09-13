@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import { WS_BASE_URL } from '@/config';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export interface CulturalFootnotes {
   humor_explanation?: string;
@@ -20,26 +21,25 @@ export interface Message {
   sender_email: string;
   original_text: string;
   translated_text?: string | null;
+  /** Per-language translations from the server: language code -> translated text. */
+  translations?: Record<string, string> | null;
   detected_lang?: string;
   cultural_footnotes?: CulturalFootnotes | null;
   is_me: boolean;
   status: 'draft' | 'final';
-  tts_url?: string | null;
-  audio_url?: string | null;
 }
 
 /** Shape of messages coming FROM the server over the socket.
  *  Kept separate from `Message` to avoid trusting unvalidated JSON. */
 interface IncomingWSMessage {
-  type: 'draft_ready' | 'message_finalized' | 'voice_finalized' | 'translation_update' | string;
+  type: 'draft_ready' | 'message_finalized' | 'translation_update' | string;
   id: string;
   sender_email: string;
   text?: string;
   translated_text?: string | null;
+  translations?: Record<string, string> | null;
   detected_lang?: string;
   cultural_footnotes?: CulturalFootnotes | null;
-  tts_url?: string | null;
-  audio_url?: string | null;
 }
 
 interface ChatState {
@@ -66,6 +66,12 @@ interface ChatState {
 // and we never end up with two sockets racing each other.
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let pingInterval: ReturnType<typeof setInterval> | null = null;
+
+// Reconnect policy: exponential backoff (3s -> 30s) long enough to ride out a
+// Render cold start, then force a logout so a dead tab stops hammering the
+// server. Auth rejections (close code 1008) skip the retries entirely.
+const MAX_RECONNECT_ATTEMPTS = 6;
+let reconnectAttempts = 0;
 
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
@@ -118,6 +124,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
+      reconnectAttempts = 0;
       set({ isConnected: true, connectionError: null });
 
       // Keepalive heartbeat every 25s for cloud proxies (Render, Cloudflare, etc.)
@@ -152,6 +159,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               sender_email: data.sender_email,
               original_text: data.text ?? '',
               translated_text: data.translated_text ?? null,
+              translations: data.translations ?? null,
               detected_lang: data.detected_lang,
               cultural_footnotes: data.cultural_footnotes ?? null,
               is_me: true,
@@ -161,19 +169,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
           break;
         }
 
-        case 'message_finalized':
-        case 'voice_finalized': {
+        case 'message_finalized': {
           get().addFinalizedMessage({
             id: data.id,
             sender_email: data.sender_email,
             original_text: data.text ?? '',
             translated_text: data.translated_text ?? null,
+            translations: data.translations ?? null,
             detected_lang: data.detected_lang,
             cultural_footnotes: data.cultural_footnotes ?? null,
             is_me: data.sender_email === myEmail,
             status: 'final',
-            tts_url: data.tts_url ?? null,
-            audio_url: data.audio_url ?? null,
           });
           break;
         }
@@ -194,17 +200,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ connectionError: 'Connection error' });
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (pingInterval) {
         clearInterval(pingInterval);
         pingInterval = null;
       }
       set({ isConnected: false, ws: null });
-      // Simple auto-reconnect. Remove this block if you'd rather
-      // handle reconnection explicitly from the UI.
+
+      // The backend closes with 1008 (policy violation) when the JWT is
+      // expired/invalid or the user is not a room participant — retrying can
+      // never succeed, so force a re-login immediately.
+      if (event.code === 1008) {
+        useAuthStore.getState().logout();
+        return;
+      }
+
+      // Network blips and server restarts: retry with exponential backoff and
+      // give up (forcing a re-login) after MAX_RECONNECT_ATTEMPTS.
+      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        useAuthStore.getState().logout();
+        return;
+      }
+      const delay = Math.min(3000 * Math.pow(2, reconnectAttempts), 30000);
+      reconnectAttempts += 1;
       reconnectTimeout = setTimeout(() => {
         get().connect(roomId, token, myEmail);
-      }, 3000);
+      }, delay);
     };
 
     set({ ws });
@@ -220,6 +241,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
     }
+    reconnectAttempts = 0;
     const ws = get().ws;
     if (ws) {
       ws.onclose = null; // Prevent auto-reconnect from firing

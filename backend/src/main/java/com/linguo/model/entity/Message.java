@@ -43,6 +43,10 @@ public class Message {
     @Column(name = "cultural_footnotes", columnDefinition = "TEXT")
     private String culturalFootnotes;
 
+    // JSON object mapping each listener seat language to its translation, e.g. {"es":"...","fr":"..."}
+    @Column(name = "translations", columnDefinition = "TEXT")
+    private String translations;
+
     @Column(name = "tts_url")
     private String ttsUrl;
 
@@ -52,7 +56,7 @@ public class Message {
 
     public Message() {}
 
-    public Message(UUID id, ChatRoom room, User sender, String originalText, String translatedText, String detectedLang, String messageType, String audioUrl, String status, String culturalFootnotes, String ttsUrl, Instant createdAt) {
+    public Message(UUID id, ChatRoom room, User sender, String originalText, String translatedText, String detectedLang, String messageType, String audioUrl, String status, String culturalFootnotes, String translations, String ttsUrl, Instant createdAt) {
         this.id = id;
         this.room = room;
         this.sender = sender;
@@ -63,6 +67,7 @@ public class Message {
         this.audioUrl = audioUrl;
         this.status = status != null ? status : "draft";
         this.culturalFootnotes = culturalFootnotes;
+        this.translations = translations;
         this.ttsUrl = ttsUrl;
         this.createdAt = createdAt;
     }
@@ -82,6 +87,7 @@ public class Message {
         private String audioUrl;
         private String status = "draft";
         private String culturalFootnotes;
+        private String translations;
         private String ttsUrl;
         private Instant createdAt;
 
@@ -95,11 +101,12 @@ public class Message {
         public Builder audioUrl(String audioUrl) { this.audioUrl = audioUrl; return this; }
         public Builder status(String status) { this.status = status; return this; }
         public Builder culturalFootnotes(String culturalFootnotes) { this.culturalFootnotes = culturalFootnotes; return this; }
+        public Builder translations(String translations) { this.translations = translations; return this; }
         public Builder ttsUrl(String ttsUrl) { this.ttsUrl = ttsUrl; return this; }
         public Builder createdAt(Instant createdAt) { this.createdAt = createdAt; return this; }
 
         public Message build() {
-            return new Message(id, room, sender, originalText, translatedText, detectedLang, messageType, audioUrl, status, culturalFootnotes, ttsUrl, createdAt);
+            return new Message(id, room, sender, originalText, translatedText, detectedLang, messageType, audioUrl, status, culturalFootnotes, translations, ttsUrl, createdAt);
         }
     }
 
@@ -123,6 +130,8 @@ public class Message {
     public void setStatus(String status) { this.status = status; }
     public String getCulturalFootnotes() { return culturalFootnotes; }
     public void setCulturalFootnotes(String culturalFootnotes) { this.culturalFootnotes = culturalFootnotes; }
+    public String getTranslations() { return translations; }
+    public void setTranslations(String translations) { this.translations = translations; }
     public String getTtsUrl() { return ttsUrl; }
     public void setTtsUrl(String ttsUrl) { this.ttsUrl = ttsUrl; }
     public Instant getCreatedAt() { return createdAt; }

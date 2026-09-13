@@ -323,7 +323,13 @@ export default function ChatRoomPage() {
           )}
 
           {/* Message List */}
-          {messages.map((m) => (
+          {messages.map((m) => {
+            // Everyone reads the translation for their own seat language;
+            // the sender sees the translation they confirmed.
+            const shownTranslation = m.is_me
+              ? m.translated_text
+              : (m.translations?.[myLang] || m.translated_text);
+            return (
             <div
               key={m.id}
               className={`flex flex-col ${m.is_me ? 'items-end' : 'items-start'}`}
@@ -345,7 +351,7 @@ export default function ChatRoomPage() {
                   {m.original_text}
                 </p>
 
-                {m.translated_text && (
+                {shownTranslation && (
                   <div className="mt-2.5 pt-2.5 border-t border-current/20 space-y-1">
                     {m.detected_lang && (
                       <p className="text-[11px] opacity-80 italic">
@@ -353,14 +359,15 @@ export default function ChatRoomPage() {
                       </p>
                     )}
                     <p className="text-sm font-semibold tracking-wide">
-                      ✨ {m.translated_text}
+                      ✨ {shownTranslation}
                     </p>
                     <Footnotes footnotes={m.cultural_footnotes as CulturalFootnotes | undefined} />
                   </div>
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
 
           {/* Draft Translation (Interactive preview with Groq) */}

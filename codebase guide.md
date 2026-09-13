@@ -27,7 +27,7 @@ One doc to navigate the codebase and find bugs fast — organized by **symptom f
    Async Translation Pipeline (Java 21 Virtual Threads)
         │
         ├── LanguageDetectionService (pure Java fast detection)
-        ├── TranslationService ──► Groq API (llama-3.1-8b-instant)
+        ├── TranslationService ──► Groq API (openai/gpt-oss-20b)
         └── Cultural Footnotes ──► Groq Cultural Analysis Prompt
         │
         ▼
