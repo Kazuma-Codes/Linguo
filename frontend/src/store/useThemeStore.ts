@@ -30,7 +30,7 @@ export const useThemeStore = create<ThemeState>()(
       },
     }),
     {
-      name: 'linguo-theme',
+      name: 'mosaic-theme',
       onRehydrateStorage: () => (state) => {
         if (state && typeof document !== 'undefined') {
           document.documentElement.setAttribute('data-theme', state.theme);

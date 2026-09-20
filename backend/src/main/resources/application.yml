@@ -4,7 +4,7 @@ server:
 
 spring:
   application:
-    name: linguo-backend
+    name: mosaic-backend
   threads:
     virtual:
       enabled: true

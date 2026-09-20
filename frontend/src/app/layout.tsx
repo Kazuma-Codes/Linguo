@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 /** App-wide metadata — title and description shown in the browser tab. */
 export const metadata: Metadata = {
-  title: 'Linguo — Cross Language Translation',
+  title: 'Mosaic — Cross Language Translation',
   description: 'Real-time cross-language translation chat app with AI',
 };
 

@@ -5,44 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useThemeStore } from '@/store/useThemeStore';
-import { getRoom, setMyLanguage, updatePreferredLanguage } from '@/lib/api';
-
-const LANG_NAMES: Record<string, string> = {
-  en: 'English',
-  hi: 'Hindi',
-  es: 'Spanish',
-  fr: 'French',
-  ja: 'Japanese',
-  ru: 'Russian',
-  ar: 'Arabic',
-  zh: 'Chinese',
-  de: 'German',
-  it: 'Italian',
-  pt: 'Portuguese',
-  ko: 'Korean',
-};
-
-
-interface CulturalFootnotes {
-  humor_explanation?: string;
-  idiom_breakdown?: string;
-  etiquette_warning?: string;
-}
-
-function Footnotes({ footnotes }: { footnotes?: CulturalFootnotes | null }) {
-  if (!footnotes) return null;
-  const { humor_explanation, idiom_breakdown, etiquette_warning } = footnotes;
-  if (!humor_explanation && !idiom_breakdown && !etiquette_warning) return null;
-
-  return (
-    <div className="mt-2.5 text-xs bg-black/25 dark:bg-black/40 p-2.5 rounded-xl border border-white/10 space-y-1 text-white">
-      <p className="font-bold text-amber-300 flex items-center gap-1">🧠 Cultural Context</p>
-      {humor_explanation && <p className="opacity-95">😄 Humor: {humor_explanation}</p>}
-      {idiom_breakdown && <p className="opacity-95">📖 Idiom: {idiom_breakdown}</p>}
-      {etiquette_warning && <p className="text-red-300 font-medium">⚠️ Etiquette: {etiquette_warning}</p>}
-    </div>
-  );
-}
+import { getRoom, getMembers, setMyLanguage, updatePreferredLanguage } from '@/lib/api';
+import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble';
+import { ChatDraftPreview } from '@/components/chat/ChatDraftPreview';
+import { RoomDetailsModal, MemberInfo } from '@/components/chat/RoomDetailsModal';
+import { LanguageSeatModal } from '@/components/chat/LanguageSeatModal';
+import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
+import { LANGUAGE_MAP as LANG_NAMES } from '@/lib/languages';
 
 export default function ChatRoomPage() {
   const params = useParams();
@@ -67,16 +36,31 @@ export default function ChatRoomPage() {
   const [input, setInput] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [myLang, setMyLang] = useState<string>('en');
-  const [roomLangs, setRoomLangs] = useState<string[]>(['en', 'es']);
+  const [roomTitle, setRoomTitle] = useState<string>('Chat Room');
+  const [distinctLangs, setDistinctLangs] = useState<string[]>([]);
+  const [members, setMembers] = useState<MemberInfo[]>([]);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [showCodeModal, setShowCodeModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [pendingLang, setPendingLang] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2600);
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -87,16 +71,14 @@ export default function ChatRoomPage() {
       return;
     }
 
-    // Fetch room metadata and current language seat
+    // Fetch room metadata, seat languages, and member roster
     getRoom(token, roomId)
       .then((roomData) => {
         if (roomData) {
-          const src = roomData.source_lang || 'en';
-          const tgt = roomData.target_lang || 'es';
-          setRoomLangs([src, tgt]);
-          if (roomData.my_language) {
-            setMyLang(roomData.my_language);
-          }
+          if (roomData.title) setRoomTitle(roomData.title);
+          if (roomData.my_language) setMyLang(roomData.my_language);
+          if (roomData.distinct_langs) setDistinctLangs(roomData.distinct_langs);
+          if (roomData.members) setMembers(roomData.members);
         }
       })
       .catch(console.error);
@@ -124,7 +106,9 @@ export default function ChatRoomPage() {
       setStoreLang(pendingLang);
       setMyLang(pendingLang);
       const langName = LANG_NAMES[pendingLang] || pendingLang.toUpperCase();
-      showToast(`🌐 Set ${langName} as your default language!`);
+      showToast(`🌐 Set ${langName} as your default language across all rooms!`);
+      // Refresh member seat info
+      getMembers(token, roomId).then((data) => setMembers(data || [])).catch(console.error);
     } catch (err) {
       console.error('Failed to change language:', err);
       showToast('Failed to update language');
@@ -139,7 +123,9 @@ export default function ChatRoomPage() {
       await setMyLanguage(token, roomId, pendingLang);
       setMyLang(pendingLang);
       const langName = LANG_NAMES[pendingLang] || pendingLang.toUpperCase();
-      showToast(`🗣️ Speaking ${langName} in this room.`);
+      showToast(`🗣️ Speaking ${langName} in this room (others see translates).`);
+      // Refresh member seat info
+      getMembers(token, roomId).then((data) => setMembers(data || [])).catch(console.error);
     } catch (err) {
       console.error('Failed to change language seat:', err);
       showToast('Failed to update room language');
@@ -209,7 +195,8 @@ export default function ChatRoomPage() {
   return (
     <div className="min-h-screen h-[100dvh] flex flex-col p-2 sm:p-4 md:p-6 bg-[var(--chat-bg)] text-[var(--text)] transition-colors duration-200">
       <div className="w-full max-w-5xl mx-auto flex-1 flex flex-col min-h-0 bg-[var(--chat-card)] border border-[var(--border)] rounded-2xl md:rounded-3xl shadow-xl overflow-hidden backdrop-blur-md">
-        {/* HEADER BAR (Matching Image 1) */}
+        
+        {/* HEADER BAR */}
         <header className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-md flex items-center justify-between gap-3 flex-wrap">
           {/* Left: Back & Room info */}
           <div className="flex items-center gap-3 sm:gap-4">
@@ -225,22 +212,35 @@ export default function ChatRoomPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base sm:text-lg tracking-tight text-[var(--text)]">
-                  Chat Room
+                  {roomTitle}
                 </h1>
                 <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-500">
                   <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 shadow-xs' : 'bg-red-500 animate-ping'}`} />
-                  <span className="hidden xs:inline">{isConnected ? 'Connected' : 'Connecting...'}</span>
+                  <span className="hidden sm:inline">{isConnected ? 'Connected' : 'Connecting...'}</span>
                 </div>
               </div>
-              <p className="text-[11px] font-mono text-[var(--muted)] truncate max-w-[170px] sm:max-w-xs" title={roomId}>
-                ID: {roomId}
-              </p>
+              
+              {/* Language Chips & Member Count */}
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                {distinctLangs.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    {distinctLangs.map((lang) => (
+                      <span key={lang} className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[var(--accent-light)] text-[var(--accent-text)] border border-[var(--accent)]/20">
+                        {lang}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <span className="text-[11px] text-[var(--muted)]">
+                  {members.length > 0 ? `${members.length} member${members.length > 1 ? 's' : ''}` : `ID: ${roomId.slice(0, 8)}...`}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Right: Language selector & Actions */}
           <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-            {/* Speaking Language selector */}
+            {/* Speaking Seat Language selector */}
             <div className="relative">
               <button
                 type="button"
@@ -280,14 +280,14 @@ export default function ChatRoomPage() {
               <span>Share</span>
             </button>
 
-            {/* Code Embed Button */}
+            {/* Room Info / Members / Code Button */}
             <button
-              onClick={() => setShowCodeModal(true)}
+              onClick={() => setShowDetailsModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-semibold hover:bg-emerald-500/20 transition-all cursor-pointer"
-              title="View Room Code / Embed"
+              title="View Room Members & Code"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-              <span>Code</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <span>Details</span>
             </button>
 
             {/* Theme Toggle */}
@@ -318,115 +318,32 @@ export default function ChatRoomPage() {
           {messages.length === 0 && drafts.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-center text-[var(--muted)] py-16 space-y-2">
               <span className="text-4xl">👋</span>
-              <p className="font-medium text-sm">No messages yet — say hello 👋</p>
+              <p className="font-medium text-sm">No messages yet — start talking in your preferred language 👋</p>
             </div>
           )}
 
           {/* Message List */}
-          {messages.map((m) => {
-            // Everyone reads the translation for their own seat language;
-            // the sender sees the translation they confirmed.
-            const shownTranslation = m.is_me
-              ? m.translated_text
-              : (m.translations?.[myLang] || m.translated_text);
-            return (
-            <div
+          {messages.map((m) => (
+            <ChatMessageBubble
               key={m.id}
-              className={`flex flex-col ${m.is_me ? 'items-end' : 'items-start'}`}
-            >
-              <div
-                className={`max-w-[85%] sm:max-w-[70%] p-3.5 sm:p-4 rounded-2xl shadow-xs ${
-                  m.is_me
-                    ? 'bg-[var(--chat-bubble-me)] text-[var(--chat-bubble-me-text)] rounded-br-xs'
-                    : 'bg-[var(--chat-bubble-other)] text-[var(--chat-bubble-other-text)] rounded-bl-xs border border-[var(--border)]'
-                }`}
-              >
-                {!m.is_me && (
-                  <p className="text-xs font-bold mb-1 opacity-70">
-                    {m.sender_email}
-                  </p>
-                )}
-
-                <p className="text-sm sm:text-base leading-relaxed break-words font-medium">
-                  {m.original_text}
-                </p>
-
-                {shownTranslation && (
-                  <div className="mt-2.5 pt-2.5 border-t border-current/20 space-y-1">
-                    {m.detected_lang && (
-                      <p className="text-[11px] opacity-80 italic">
-                        Detected: {LANG_NAMES[m.detected_lang] || m.detected_lang}
-                      </p>
-                    )}
-                    <p className="text-sm font-semibold tracking-wide">
-                      ✨ {shownTranslation}
-                    </p>
-                    <Footnotes footnotes={m.cultural_footnotes as CulturalFootnotes | undefined} />
-                  </div>
-                )}
-              </div>
-            </div>
-            );
-          })}
-
+              message={m}
+              myLang={myLang}
+              isExpanded={expandedIds.has(m.id)}
+              onToggleExpand={toggleExpanded}
+              langNames={LANG_NAMES}
+            />
+          ))}
 
           {/* Draft Translation (Interactive preview with Groq) */}
-          {drafts.map((d) => {
-            const isTranslating = d.translated_text === null || d.translated_text === undefined;
-
-            return (
-              <div key={d.id} className="flex justify-end">
-                <div className="max-w-[85%] sm:max-w-[75%] p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-[var(--text)] shadow-md space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                      ✨ Draft AI Translation
-                    </span>
-                    {isTranslating && (
-                      <span className="text-xs text-amber-500 font-medium flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                        Translating with Groq...
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-[var(--muted)] italic">
-                    Original: {d.original_text}
-                  </p>
-
-                  <textarea
-                    value={d.translated_text ?? ''}
-                    onChange={(e) => updateDraftTranslation(d.id, e.target.value)}
-                    rows={2}
-                    placeholder={isTranslating ? 'Translating with Groq... (or type your translation)' : 'Edit translation before sending...'}
-                    className="w-full bg-[var(--card)] border border-[var(--border)] p-2.5 rounded-xl text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-amber-500/40 resize-none font-medium"
-                  />
-
-                  <Footnotes footnotes={d.cultural_footnotes as CulturalFootnotes | undefined} />
-
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <button
-                      onClick={() => confirmDraft(d.id, d.translated_text || d.original_text)}
-                      className="px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs"
-                    >
-                      Send
-                    </button>
-                    <button
-                      onClick={() => confirmDraft(d.id, d.original_text)}
-                      className="px-3.5 py-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--text)] font-semibold text-xs transition-colors cursor-pointer"
-                    >
-                      Send Original
-                    </button>
-                    <button
-                      onClick={() => removeDraft(d.id)}
-                      className="px-3.5 py-1.5 rounded-full text-red-500 hover:bg-red-500/10 font-semibold text-xs transition-colors cursor-pointer ml-auto"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {drafts.map((d) => (
+            <ChatDraftPreview
+              key={d.id}
+              draft={d}
+              onUpdateDraftTranslation={updateDraftTranslation}
+              onConfirmDraft={confirmDraft}
+              onRemoveDraft={removeDraft}
+            />
+          ))}
 
           <div ref={messagesEndRef} />
         </main>
@@ -469,110 +386,33 @@ export default function ChatRoomPage() {
       </div>
 
       {/* Logout Confirmation Modal */}
-      {showLogoutModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 sm:p-7 max-w-sm w-full shadow-2xl text-center">
-            <div className="text-4xl mb-3">👋</div>
-            <h3 className="text-lg font-bold text-[var(--text)] mb-2">Leave this room?</h3>
-            <p className="text-sm text-[var(--muted)] mb-6">
-              You will be returned to your dashboard.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                className="py-2.5 rounded-xl border border-[var(--border)] text-[var(--text)] font-semibold text-sm hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
-              >
-                Stay
-              </button>
-              <button
-                onClick={handleLogout}
-                className="py-2.5 rounded-xl bg-red-600 text-white font-semibold text-sm hover:bg-red-700 transition-colors cursor-pointer"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+        title="Leave this room?"
+        description="You will be returned to your dashboard."
+      />
 
-      {/* Code Snippet Modal */}
-      {showCodeModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-[var(--text)]">📋 Room Details</h3>
-              <button onClick={() => setShowCodeModal(false)} className="text-[var(--muted)] hover:text-[var(--text)] text-lg">✕</button>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[var(--muted)] uppercase">Room ID</label>
-              <div className="p-3 bg-[var(--bg-subtle)] rounded-xl font-mono text-xs text-[var(--text)] break-all border border-[var(--border)]">
-                {roomId}
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[var(--muted)] uppercase">Embed Code</label>
-              <pre className="p-3 bg-[var(--bg-subtle)] rounded-xl font-mono text-xs text-[var(--text)] overflow-x-auto border border-[var(--border)]">
-                {`<iframe\n  src="${typeof window !== 'undefined' ? window.location.origin : ''}/chat/${roomId}"\n  width="100%"\n  height="600"\n  frameborder="0"\n/>`}
-              </pre>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={handleCopyCode}
-                className="px-4 py-2 rounded-xl bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] text-xs font-semibold hover:opacity-90 transition-all cursor-pointer"
-              >
-                Copy Room ID
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Room Details Modal */}
+      <RoomDetailsModal
+        isOpen={showDetailsModal}
+        onClose={() => setShowDetailsModal(false)}
+        roomId={roomId}
+        members={members}
+        currentEmail={user.email}
+        langNames={LANG_NAMES}
+        onCopyCode={handleCopyCode}
+      />
 
       {/* Language Preference Confirmation Modal */}
-      {pendingLang && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center text-lg font-bold">
-                🌐
-              </div>
-              <div>
-                <h3 className="font-bold text-[var(--text)] text-base">Change Language</h3>
-                <p className="text-xs text-[var(--muted)]">
-                  Switch speaking language to <span className="font-semibold text-[var(--text)]">{LANG_NAMES[pendingLang] || pendingLang.toUpperCase()}</span>
-                </p>
-              </div>
-            </div>
-
-            <p className="text-xs text-[var(--muted)] leading-relaxed">
-              Would you like to set this as your default language across all rooms, or keep it only for this chat room?
-            </p>
-
-            <div className="space-y-2 pt-2">
-              <button
-                onClick={handleConfirmGlobalLanguage}
-                className="w-full py-2.5 px-4 rounded-xl bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] text-xs font-bold hover:opacity-90 transition-all cursor-pointer shadow-sm"
-              >
-                Yes, set as default for all rooms
-              </button>
-              <button
-                onClick={handleConfirmRoomOnlyLanguage}
-                className="w-full py-2.5 px-4 rounded-xl bg-[var(--bg-subtle)] text-[var(--text)] hover:bg-[var(--card-hover)] border border-[var(--border)] text-xs font-semibold transition-all cursor-pointer"
-              >
-                Only for this room
-              </button>
-              <button
-                onClick={() => setPendingLang(null)}
-                className="w-full py-2 px-4 rounded-xl text-[var(--muted)] hover:text-[var(--text)] text-xs font-medium transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LanguageSeatModal
+        pendingLang={pendingLang}
+        langNames={LANG_NAMES}
+        onConfirmGlobal={handleConfirmGlobalLanguage}
+        onConfirmRoomOnly={handleConfirmRoomOnlyLanguage}
+        onCancel={() => setPendingLang(null)}
+      />
 
       {/* Toast notifications */}
       {toastMessage && (
@@ -582,4 +422,4 @@ export default function ChatRoomPage() {
       )}
     </div>
   );
-}
+}

@@ -157,3 +157,10 @@ export async function setMyLanguage(token: string, roomId: string, language: str
     body: JSON.stringify({ language }),
   });
 }
+
+/** Fetch list of participants and their language seats in a room. */
+export async function getMembers(token: string, roomId: string) {
+  return apiFetch(`/rooms/${roomId}/members`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}

@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.linguo</groupId>
+    <groupId>com.mosaic</groupId>
     <artifactId>backend</artifactId>
     <version>1.0.0</version>
-    <name>linguo-backend</name>
-    <description>Realtime Multilingual AI Translation Backend in Spring Boot</description>
+    <name>mosaic-backend</name>
+    <description>Mosaic — Realtime Multilingual AI Translation Backend in Spring Boot</description>
 
     <properties>
         <java.version>21</java.version>
