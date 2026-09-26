@@ -14,6 +14,7 @@ import java.util.UUID;
 @Repository
 public interface MessageRepository extends JpaRepository<Message, UUID> {
     List<Message> findAllByRoomIdOrderByCreatedAtAsc(UUID roomId);
+    List<Message> findAllByRoomIdAndStatusOrderByCreatedAtAsc(UUID roomId, String status);
     Optional<Message> findByIdAndRoomId(UUID id, UUID roomId);
 
     @Query("SELECT m.status FROM Message m WHERE m.id = :id")
@@ -35,4 +36,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     @Modifying
     @Query("UPDATE Message m SET m.culturalFootnotes = :footnotes WHERE m.id = :id AND m.status <> 'final'")
     int applyFootnotesIfDraft(@Param("id") UUID id, @Param("footnotes") String footnotes);
+
+    @Modifying
+    @Query("UPDATE Message m SET m.deliveryStatus = :status WHERE m.room.id = :roomId AND m.sender.id <> :viewerId AND m.status = 'final'")
+    int markRoomMessagesAsRead(@Param("roomId") UUID roomId, @Param("viewerId") UUID viewerId, @Param("status") String status);
 }

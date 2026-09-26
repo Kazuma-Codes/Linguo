@@ -32,7 +32,7 @@ public class Message {
     private String detectedLang;
 
     @Column(name = "message_type", nullable = false)
-    private String messageType = "text";
+    private String messageType = "text"; // "text" | "image" | "file"
 
     @Column(name = "audio_url")
     private String audioUrl;
@@ -50,13 +50,32 @@ public class Message {
     @Column(name = "tts_url")
     private String ttsUrl;
 
+    @Column(name = "reply_to_id")
+    private UUID replyToId;
+
+    @Column(name = "attachment_url")
+    private String attachmentUrl;
+
+    @Column(name = "attachment_name")
+    private String attachmentName;
+
+    @Column(name = "attachment_size")
+    private Long attachmentSize;
+
+    @Column(name = "delivery_status")
+    private String deliveryStatus = "read"; // "sent" | "delivered" | "read"
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     public Message() {}
 
-    public Message(UUID id, ChatRoom room, User sender, String originalText, String translatedText, String detectedLang, String messageType, String audioUrl, String status, String culturalFootnotes, String translations, String ttsUrl, Instant createdAt) {
+    public Message(UUID id, ChatRoom room, User sender, String originalText, String translatedText,
+                   String detectedLang, String messageType, String audioUrl, String status,
+                   String culturalFootnotes, String translations, String ttsUrl,
+                   UUID replyToId, String attachmentUrl, String attachmentName, Long attachmentSize,
+                   String deliveryStatus, Instant createdAt) {
         this.id = id;
         this.room = room;
         this.sender = sender;
@@ -69,6 +88,11 @@ public class Message {
         this.culturalFootnotes = culturalFootnotes;
         this.translations = translations;
         this.ttsUrl = ttsUrl;
+        this.replyToId = replyToId;
+        this.attachmentUrl = attachmentUrl;
+        this.attachmentName = attachmentName;
+        this.attachmentSize = attachmentSize;
+        this.deliveryStatus = deliveryStatus != null ? deliveryStatus : "read";
         this.createdAt = createdAt;
     }
 
@@ -89,6 +113,11 @@ public class Message {
         private String culturalFootnotes;
         private String translations;
         private String ttsUrl;
+        private UUID replyToId;
+        private String attachmentUrl;
+        private String attachmentName;
+        private Long attachmentSize;
+        private String deliveryStatus = "read";
         private Instant createdAt;
 
         public Builder id(UUID id) { this.id = id; return this; }
@@ -103,10 +132,15 @@ public class Message {
         public Builder culturalFootnotes(String culturalFootnotes) { this.culturalFootnotes = culturalFootnotes; return this; }
         public Builder translations(String translations) { this.translations = translations; return this; }
         public Builder ttsUrl(String ttsUrl) { this.ttsUrl = ttsUrl; return this; }
+        public Builder replyToId(UUID replyToId) { this.replyToId = replyToId; return this; }
+        public Builder attachmentUrl(String attachmentUrl) { this.attachmentUrl = attachmentUrl; return this; }
+        public Builder attachmentName(String attachmentName) { this.attachmentName = attachmentName; return this; }
+        public Builder attachmentSize(Long attachmentSize) { this.attachmentSize = attachmentSize; return this; }
+        public Builder deliveryStatus(String deliveryStatus) { this.deliveryStatus = deliveryStatus; return this; }
         public Builder createdAt(Instant createdAt) { this.createdAt = createdAt; return this; }
 
         public Message build() {
-            return new Message(id, room, sender, originalText, translatedText, detectedLang, messageType, audioUrl, status, culturalFootnotes, translations, ttsUrl, createdAt);
+            return new Message(id, room, sender, originalText, translatedText, detectedLang, messageType, audioUrl, status, culturalFootnotes, translations, ttsUrl, replyToId, attachmentUrl, attachmentName, attachmentSize, deliveryStatus, createdAt);
         }
     }
 
@@ -134,6 +168,16 @@ public class Message {
     public void setTranslations(String translations) { this.translations = translations; }
     public String getTtsUrl() { return ttsUrl; }
     public void setTtsUrl(String ttsUrl) { this.ttsUrl = ttsUrl; }
+    public UUID getReplyToId() { return replyToId; }
+    public void setReplyToId(UUID replyToId) { this.replyToId = replyToId; }
+    public String getAttachmentUrl() { return attachmentUrl; }
+    public void setAttachmentUrl(String attachmentUrl) { this.attachmentUrl = attachmentUrl; }
+    public String getAttachmentName() { return attachmentName; }
+    public void setAttachmentName(String attachmentName) { this.attachmentName = attachmentName; }
+    public Long getAttachmentSize() { return attachmentSize; }
+    public void setAttachmentSize(Long attachmentSize) { this.attachmentSize = attachmentSize; }
+    public String getDeliveryStatus() { return deliveryStatus; }
+    public void setDeliveryStatus(String deliveryStatus) { this.deliveryStatus = deliveryStatus; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }
