@@ -5,12 +5,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useThemeStore } from '@/store/useThemeStore';
-import { getRoom, getMembers, setMyLanguage, updatePreferredLanguage } from '@/lib/api';
-import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble';
+import { getRoom, getRoomMessages, getMembers, setMyLanguage, updatePreferredLanguage } from '@/lib/api';
+import { MergedMessageBubble } from '@/components/chat/MergedMessageBubble';
+import { MergedComposer } from '@/components/chat/MergedComposer';
 import { ChatDraftPreview } from '@/components/chat/ChatDraftPreview';
-import { RoomDetailsModal, MemberInfo } from '@/components/chat/RoomDetailsModal';
+import { RoomInfoDrawer, MemberInfo } from '@/components/chat/RoomInfoDrawer';
 import { LanguageSeatModal } from '@/components/chat/LanguageSeatModal';
 import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
+import { MergedAvatar } from '@/components/common/MergedAvatar';
+import { Icons } from '@/lib/icons';
 import { LANGUAGE_MAP as LANG_NAMES } from '@/lib/languages';
 
 export default function ChatRoomPage() {
@@ -24,24 +27,29 @@ export default function ChatRoomPage() {
     messages,
     drafts,
     isConnected,
+    replyTo,
+    typingUsers,
+    setInitialMessages,
+    setReplyTo,
     connect,
     disconnect,
     sendDraft,
     confirmDraft,
     sendMessage,
+    sendTyping,
     removeDraft,
     updateDraftTranslation,
+    deleteMessage,
   } = useChatStore();
 
-  const [input, setInput] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [myLang, setMyLang] = useState<string>('en');
   const [roomTitle, setRoomTitle] = useState<string>('Chat Room');
+  const [roomDetail, setRoomDetail] = useState<any | null>(null);
   const [distinctLangs, setDistinctLangs] = useState<string[]>([]);
   const [members, setMembers] = useState<MemberInfo[]>([]);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [showDetailsDrawer, setShowDetailsDrawer] = useState(false);
   const [pendingLang, setPendingLang] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -54,11 +62,8 @@ export default function ChatRoomPage() {
   const toggleExpanded = (id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -71,10 +76,11 @@ export default function ChatRoomPage() {
       return;
     }
 
-    // Fetch room metadata, seat languages, and member roster
+    // 1. Fetch room detail
     getRoom(token, roomId)
       .then((roomData) => {
         if (roomData) {
+          setRoomDetail(roomData);
           if (roomData.title) setRoomTitle(roomData.title);
           if (roomData.my_language) setMyLang(roomData.my_language);
           if (roomData.distinct_langs) setDistinctLangs(roomData.distinct_langs);
@@ -83,6 +89,16 @@ export default function ChatRoomPage() {
       })
       .catch(console.error);
 
+    // 2. Fetch history
+    getRoomMessages(token, roomId)
+      .then((history) => {
+        if (Array.isArray(history)) {
+          setInitialMessages(history);
+        }
+      })
+      .catch(console.error);
+
+    // 3. Connect socket
     connect(roomId, token, user.email);
     return () => disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,12 +107,6 @@ export default function ChatRoomPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, drafts.length]);
-
-  const handleSelectLanguage = (newLang: string) => {
-    setIsLangDropdownOpen(false);
-    if (newLang === myLang) return;
-    setPendingLang(newLang);
-  };
 
   const handleConfirmGlobalLanguage = async () => {
     if (!pendingLang || !token) return;
@@ -107,10 +117,8 @@ export default function ChatRoomPage() {
       setMyLang(pendingLang);
       const langName = LANG_NAMES[pendingLang] || pendingLang.toUpperCase();
       showToast(`🌐 Set ${langName} as your default language across all rooms!`);
-      // Refresh member seat info
       getMembers(token, roomId).then((data) => setMembers(data || [])).catch(console.error);
     } catch (err) {
-      console.error('Failed to change language:', err);
       showToast('Failed to update language');
     } finally {
       setPendingLang(null);
@@ -123,32 +131,13 @@ export default function ChatRoomPage() {
       await setMyLanguage(token, roomId, pendingLang);
       setMyLang(pendingLang);
       const langName = LANG_NAMES[pendingLang] || pendingLang.toUpperCase();
-      showToast(`🗣️ Speaking ${langName} in this room (others see translates).`);
-      // Refresh member seat info
+      showToast(`🗣️ Speaking ${langName} in this room.`);
       getMembers(token, roomId).then((data) => setMembers(data || [])).catch(console.error);
     } catch (err) {
-      console.error('Failed to change language seat:', err);
       showToast('Failed to update room language');
     } finally {
       setPendingLang(null);
     }
-  };
-
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = input.trim();
-    if (!trimmed || !isConnected) return;
-    sendMessage(trimmed);
-    setInput('');
-  };
-
-  const handleDraft = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const trimmed = input.trim();
-    if (!trimmed || !isConnected) return;
-    sendDraft(trimmed);
-    setInput('');
-    showToast('✨ Translating with Groq AI...');
   };
 
   const handleShareLink = async () => {
@@ -193,144 +182,120 @@ export default function ChatRoomPage() {
   const currentLangName = LANG_NAMES[myLang] || myLang.toUpperCase();
 
   return (
-    <div className="min-h-screen h-[100dvh] flex flex-col p-2 sm:p-4 md:p-6 bg-[var(--chat-bg)] text-[var(--text)] transition-colors duration-200">
-      <div className="w-full max-w-5xl mx-auto flex-1 flex flex-col min-h-0 bg-[var(--chat-card)] border border-[var(--border)] rounded-2xl md:rounded-3xl shadow-xl overflow-hidden backdrop-blur-md">
+    <div className="min-h-screen h-[100dvh] flex flex-col bg-[var(--chat-bg)] text-[var(--text)] transition-colors duration-200">
+      <div className="w-full max-w-6xl mx-auto flex-1 flex flex-col min-h-0 bg-[var(--chat-card)] border-x border-[var(--border)] shadow-2xl overflow-hidden backdrop-blur-md">
         
         {/* HEADER BAR */}
-        <header className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-md flex items-center justify-between gap-3 flex-wrap">
-          {/* Left: Back & Room info */}
-          <div className="flex items-center gap-3 sm:gap-4">
+        <header className="px-4 py-3 sm:px-6 border-b border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-md flex items-center justify-between gap-3 flex-none z-10">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Back button */}
             <button
               onClick={() => router.push('/')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] hover:bg-[var(--card)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] transition-all cursor-pointer"
+              className="p-2 rounded-full hover:bg-[var(--bg-subtle)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
               title="Back to Dashboard"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-              <span>Back</span>
+              <Icons.back className="w-5 h-5" />
             </button>
 
-            <div>
+            <MergedAvatar
+              name={roomTitle}
+              avatarUrl={roomDetail?.avatar_url}
+              emoji={roomDetail?.emoji || '💬'}
+              size="md"
+            />
+
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-base sm:text-lg tracking-tight text-[var(--text)]">
+                <h1 className="font-bold text-base sm:text-lg tracking-tight text-[var(--text)] truncate">
                   {roomTitle}
                 </h1>
-                <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-500">
-                  <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 shadow-xs' : 'bg-red-500 animate-ping'}`} />
-                  <span className="hidden sm:inline">{isConnected ? 'Connected' : 'Connecting...'}</span>
-                </div>
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isConnected ? 'bg-emerald-500' : 'bg-red-500 animate-ping'
+                  }`}
+                  title={isConnected ? 'Connected' : 'Connecting...'}
+                />
               </div>
-              
-              {/* Language Chips & Member Count */}
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                {distinctLangs.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    {distinctLangs.map((lang) => (
-                      <span key={lang} className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[var(--accent-light)] text-[var(--accent-text)] border border-[var(--accent)]/20">
-                        {lang}
-                      </span>
-                    ))}
-                  </div>
+
+              {/* Typing indicator or active members */}
+              <p className="text-xs text-[var(--muted)] truncate">
+                {Object.keys(typingUsers).length > 0 ? (
+                  <span className="text-[var(--primary)] font-semibold animate-pulse">
+                    {Object.values(typingUsers)[0].username || Object.values(typingUsers)[0].email.split('@')[0]} is typing...
+                  </span>
+                ) : (
+                  `${members.length} participant${members.length > 1 ? 's' : ''}`
                 )}
-                <span className="text-[11px] text-[var(--muted)]">
-                  {members.length > 0 ? `${members.length} member${members.length > 1 ? 's' : ''}` : `ID: ${roomId.slice(0, 8)}...`}
-                </span>
-              </div>
+              </p>
             </div>
           </div>
 
           {/* Right: Language selector & Actions */}
-          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2">
             {/* Speaking Seat Language selector */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] hover:bg-[var(--card)] text-xs font-semibold text-[var(--text)] transition-all cursor-pointer"
-              >
-                <span className="text-[var(--muted)]">Speaking:</span>
-                <span>{currentLangName}</span>
-                <span className="text-[var(--muted)] text-[10px]">⌄</span>
-              </button>
-
-              {isLangDropdownOpen && (
-                <div className="absolute right-0 mt-1.5 w-40 bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-xl py-1.5 z-50 text-xs font-medium max-h-60 overflow-y-auto">
-                  {Object.entries(LANG_NAMES).map(([code, name]) => (
-                    <button
-                      key={code}
-                      onClick={() => handleSelectLanguage(code)}
-                      className={`w-full px-3.5 py-2 text-left flex items-center justify-between hover:bg-[var(--bg-subtle)] transition-colors ${
-                        code === myLang ? 'text-[var(--accent)] font-bold' : 'text-[var(--text)]'
-                      }`}
-                    >
-                      <span>{name}</span>
-                      {code === myLang && <span>✓</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => setPendingLang(myLang)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] hover:bg-[var(--card)] text-xs font-semibold text-[var(--text)] transition-all cursor-pointer"
+              title="Change your speaking language seat"
+            >
+              <span className="text-[var(--muted)] hidden sm:inline">Speaking:</span>
+              <span className="font-bold text-[var(--primary)]">{currentLangName}</span>
+            </button>
 
             {/* Share Link Button */}
             <button
               onClick={handleShareLink}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-xs font-semibold hover:bg-indigo-500/20 transition-all cursor-pointer"
+              className="p-2 rounded-full hover:bg-[var(--bg-subtle)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
               title="Share Room Invite Link"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
-              <span>Share</span>
+              <Icons.share className="w-4 h-4" />
             </button>
 
-            {/* Room Info / Members / Code Button */}
+            {/* Room Info Details Button */}
             <button
-              onClick={() => setShowDetailsModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-semibold hover:bg-emerald-500/20 transition-all cursor-pointer"
-              title="View Room Members & Code"
+              onClick={() => setShowDetailsDrawer(true)}
+              className="p-2 rounded-full hover:bg-[var(--bg-subtle)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+              title="View Room Details"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-              <span>Details</span>
+              <Icons.info className="w-4 h-4" />
             </button>
 
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              className="p-2 rounded-full border border-[var(--border)] hover:bg-[var(--bg-subtle)] text-[var(--text)] transition-colors"
+              className="p-2 rounded-full hover:bg-[var(--bg-subtle)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+              title="Toggle theme"
             >
-              {theme === 'dark' ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-              )}
-            </button>
-
-            {/* Logout button */}
-            <button
-              onClick={() => setShowLogoutModal(true)}
-              className="px-3 py-1.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 text-xs font-semibold hover:bg-red-500/20 transition-all cursor-pointer"
-            >
-              Logout
+              {theme === 'dark' ? <Icons.sun className="w-4 h-4 text-amber-400" /> : <Icons.moon className="w-4 h-4 text-indigo-500" />}
             </button>
           </div>
         </header>
 
         {/* MESSAGES AREA */}
-        <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-2">
           {messages.length === 0 && drafts.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-center text-[var(--muted)] py-16 space-y-2">
               <span className="text-4xl">👋</span>
-              <p className="font-medium text-sm">No messages yet — start talking in your preferred language 👋</p>
+              <p className="font-medium text-sm">No messages yet — start talking in {currentLangName} 👋</p>
             </div>
           )}
 
           {/* Message List */}
           {messages.map((m) => (
-            <ChatMessageBubble
+            <MergedMessageBubble
               key={m.id}
               message={m}
+              allMessages={messages}
               myLang={myLang}
               isExpanded={expandedIds.has(m.id)}
               onToggleExpand={toggleExpanded}
               langNames={LANG_NAMES}
+              onReply={(target) => setReplyTo(target)}
+              onDelete={(id) => deleteMessage(id)}
+              onJumpToReply={(replyId) => {
+                const el = document.getElementById(`msg-${replyId}`);
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
             />
           ))}
 
@@ -349,40 +314,18 @@ export default function ChatRoomPage() {
         </main>
 
         {/* MESSAGE COMPOSER */}
-        <footer className="p-3 sm:p-4 border-t border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-md">
-          <form onSubmit={handleSend} className="flex gap-2 sm:gap-3 items-center">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                isConnected
-                  ? `Type in ${currentLangName}... (Enter to Send)`
-                  : 'Connecting...'
-              }
-              disabled={!isConnected}
-              className="flex-1 bg-[var(--bg-subtle)] border border-[var(--border)] rounded-full px-4 py-3 text-sm sm:text-base text-[var(--text)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] transition-all"
-            />
-
-            <button
-              type="submit"
-              disabled={!isConnected || !input.trim()}
-              className="px-5 py-3 rounded-full bg-[var(--chat-bubble-me)] text-white font-semibold text-sm hover:opacity-90 transition-all shadow-sm active:scale-95 disabled:opacity-40 cursor-pointer flex-none"
-            >
-              Send
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDraft}
-              disabled={!isConnected || !input.trim()}
-              className="px-4 sm:px-5 py-3 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold text-sm hover:opacity-90 transition-all shadow-sm active:scale-95 disabled:opacity-40 cursor-pointer flex items-center gap-1 flex-none"
-              title="Translate with Groq and preview before sending"
-            >
-              <span>✨</span>
-              <span className="hidden sm:inline">Translate</span>
-            </button>
-          </form>
-        </footer>
+        <MergedComposer
+          currentLangName={currentLangName}
+          isConnected={isConnected}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
+          onSend={(text, extra) => sendMessage(text, extra)}
+          onDraft={(text, extra) => {
+            sendDraft(text, extra);
+            showToast('✨ Translating with Groq AI...');
+          }}
+          onTyping={(isTyping) => sendTyping(isTyping)}
+        />
       </div>
 
       {/* Logout Confirmation Modal */}
@@ -394,15 +337,22 @@ export default function ChatRoomPage() {
         description="You will be returned to your dashboard."
       />
 
-      {/* Room Details Modal */}
-      <RoomDetailsModal
-        isOpen={showDetailsModal}
-        onClose={() => setShowDetailsModal(false)}
+      {/* Room Details Drawer */}
+      <RoomInfoDrawer
+        isOpen={showDetailsDrawer}
+        onClose={() => setShowDetailsDrawer(false)}
         roomId={roomId}
+        title={roomTitle}
+        description={roomDetail?.description}
+        emoji={roomDetail?.emoji}
+        avatarUrl={roomDetail?.avatar_url}
         members={members}
+        distinctLangs={distinctLangs}
         currentEmail={user.email}
         langNames={LANG_NAMES}
         onCopyCode={handleCopyCode}
+        onShareLink={handleShareLink}
+        onLeaveRoom={() => router.push('/')}
       />
 
       {/* Language Preference Confirmation Modal */}
@@ -416,7 +366,7 @@ export default function ChatRoomPage() {
 
       {/* Toast notifications */}
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[var(--card)] text-[var(--text)] border border-[var(--border)] px-4 py-2.5 rounded-full shadow-xl text-sm font-semibold flex items-center gap-2">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[var(--card)] text-[var(--text)] border border-[var(--border)] px-4 py-2.5 rounded-full shadow-2xl text-xs sm:text-sm font-semibold flex items-center gap-2 animate-bounce">
           <span>{toastMessage}</span>
         </div>
       )}
