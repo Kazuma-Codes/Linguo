@@ -1,9 +1,5 @@
 /**
- * Zustand chat store — manages WebSocket connection and chat messages.
- *
- * Connects to the backend WebSocket, handles incoming messages, and exposes
- * actions for sending drafts and confirming translations. Includes automatic
- * reconnection on socket close (with deduplication to avoid socket races).
+ * Zustand chat store — manages WebSocket connection, message history, drafts, typing indicators.
  */
 
 import { create } from 'zustand';
@@ -19,27 +15,44 @@ export interface CulturalFootnotes {
 export interface Message {
   id: string;
   sender_email: string;
+  sender_username?: string;
+  sender_avatar_url?: string;
   original_text: string;
   translated_text?: string | null;
-  /** Per-language translations from the server: language code -> translated text. */
   translations?: Record<string, string> | null;
   detected_lang?: string;
   cultural_footnotes?: CulturalFootnotes | null;
+  message_type?: string;
+  reply_to_id?: string | null;
+  attachment_url?: string | null;
+  attachment_name?: string | null;
+  attachment_size?: number | null;
+  delivery_status?: string;
   is_me: boolean;
   status: 'draft' | 'final';
+  created_at?: number | string;
 }
 
-/** Shape of messages coming FROM the server over the socket.
- *  Kept separate from `Message` to avoid trusting unvalidated JSON. */
 interface IncomingWSMessage {
-  type: 'draft_ready' | 'message_finalized' | 'translation_update' | string;
-  id: string;
-  sender_email: string;
+  type: 'draft_ready' | 'message_finalized' | 'typing' | 'read_ack' | 'message_deleted' | 'pong' | string;
+  id?: string;
+  sender_email?: string;
+  sender_username?: string;
+  sender_avatar_url?: string;
   text?: string;
+  original_text?: string;
   translated_text?: string | null;
   translations?: Record<string, string> | null;
   detected_lang?: string;
   cultural_footnotes?: CulturalFootnotes | null;
+  reply_to_id?: string | null;
+  attachment_url?: string | null;
+  attachment_name?: string | null;
+  attachment_size?: number | null;
+  delivery_status?: string;
+  message_type?: string;
+  is_typing?: boolean;
+  created_at?: number;
 }
 
 interface ChatState {
@@ -48,28 +61,31 @@ interface ChatState {
   ws: WebSocket | null;
   isConnected: boolean;
   connectionError: string | null;
+  replyTo: Message | null;
+  typingUsers: Record<string, { email: string; username?: string }>;
 
+  setInitialMessages: (messages: Message[]) => void;
+  setReplyTo: (msg: Message | null) => void;
   addFinalizedMessage: (m: Message) => void;
   addOrUpdateDraft: (m: Message) => void;
   removeDraft: (id: string) => void;
+  removeMessage: (id: string) => void;
   updateDraftTranslation: (id: string, translated: string, lang?: string) => void;
 
   connect: (roomId: string, token: string, myEmail: string) => void;
   disconnect: () => void;
 
-  sendDraft: (text: string) => void;
+  sendDraft: (text: string, extra?: { reply_to_id?: string; attachment_url?: string; attachment_name?: string; attachment_size?: number; message_type?: string }) => void;
   confirmDraft: (id: string, editedText: string) => void;
-  sendMessage: (text: string) => void;
+  sendMessage: (text: string, extra?: { reply_to_id?: string; attachment_url?: string; attachment_name?: string; attachment_size?: number; message_type?: string }) => void;
+  sendTyping: (isTyping: boolean) => void;
+  sendReadAck: (messageId: string) => void;
+  deleteMessage: (messageId: string) => void;
 }
 
-// Keep a handle to any pending reconnect so disconnect() can cancel it
-// and we never end up with two sockets racing each other.
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let pingInterval: ReturnType<typeof setInterval> | null = null;
-
-// Reconnect policy: exponential backoff (3s -> 30s) long enough to ride out a
-// Render cold start, then force a logout so a dead tab stops hammering the
-// server. Auth rejections (close code 1008) skip the retries entirely.
+let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 const MAX_RECONNECT_ATTEMPTS = 6;
 let reconnectAttempts = 0;
 
@@ -79,15 +95,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
   ws: null,
   isConnected: false,
   connectionError: null,
+  replyTo: null,
+  typingUsers: {},
 
-  /** Move a message into the finalized list and remove it from drafts. */
+  setInitialMessages: (messages) => set({ messages }),
+
+  setReplyTo: (msg) => set({ replyTo: msg }),
+
   addFinalizedMessage: (m) =>
-    set((s) => ({
-      messages: [...s.messages, m],
-      drafts: s.drafts.filter((d) => d.id !== m.id),
-    })),
+    set((s) => {
+      // Deduplicate if already exists
+      const exists = s.messages.some((msg) => msg.id === m.id);
+      return {
+        messages: exists ? s.messages.map((msg) => (msg.id === m.id ? m : msg)) : [...s.messages, m],
+        drafts: s.drafts.filter((d) => d.id !== m.id),
+      };
+    }),
 
-  /** Add a draft or update it if one with the same id already exists. */
   addOrUpdateDraft: (m) =>
     set((s) => {
       const exists = s.drafts.some((d) => d.id === m.id);
@@ -96,10 +120,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         : { drafts: [...s.drafts, m] };
     }),
 
-  /** Remove a draft by id (e.g. when the user cancels). */
   removeDraft: (id) => set((s) => ({ drafts: s.drafts.filter((d) => d.id !== id) })),
 
-  /** Update the translated text of a draft (e.g. user edits it before sending). */
+  removeMessage: (id) => set((s) => ({ messages: s.messages.filter((m) => m.id !== id) })),
+
   updateDraftTranslation: (id, translated, lang) =>
     set((s) => ({
       drafts: s.drafts.map((d) =>
@@ -110,11 +134,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })),
 
   connect: (roomId, token, myEmail) => {
-    // Avoid opening a duplicate socket if already connected
     const existing = get().ws;
     if (existing && existing.readyState === WebSocket.OPEN) return;
 
-    // Cancel any pending reconnect so two sockets can't race
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
@@ -127,7 +149,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       reconnectAttempts = 0;
       set({ isConnected: true, connectionError: null });
 
-      // Keepalive heartbeat every 25s for cloud proxies (Render, Cloudflare, etc.)
       if (pingInterval) clearInterval(pingInterval);
       pingInterval = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
@@ -141,57 +162,99 @@ export const useChatStore = create<ChatState>((set, get) => ({
       try {
         data = JSON.parse(event.data);
       } catch {
-        console.warn('[chatStore] Received non-JSON WS message:', event.data);
         return;
       }
 
       switch (data.type) {
         case 'pong':
-          // Heartbeat response, connection is healthy
           break;
 
+        case 'typing': {
+          if (data.sender_email && data.sender_email !== myEmail) {
+            const sender = data.sender_email;
+            set((s) => {
+              const updated = { ...s.typingUsers };
+              if (data.is_typing) {
+                updated[sender] = { email: sender, username: data.sender_username };
+              } else {
+                delete updated[sender];
+              }
+              return { typingUsers: updated };
+            });
+          }
+          break;
+        }
+
+        case 'read_ack': {
+          if (data.id) {
+            set((s) => ({
+              messages: s.messages.map((m) =>
+                m.id === data.id ? { ...m, delivery_status: 'read' } : m
+              ),
+            }));
+          }
+          break;
+        }
+
+        case 'message_deleted': {
+          if (data.id) {
+            get().removeMessage(data.id);
+          }
+          break;
+        }
+
         case 'draft_ready': {
-          // Only track drafts for messages I'm sending — other users'
-          // in-progress drafts aren't rendered.
-          if (data.sender_email === myEmail) {
+          if (data.sender_email === myEmail && data.id) {
             get().addOrUpdateDraft({
               id: data.id,
               sender_email: data.sender_email,
-              original_text: data.text ?? '',
+              sender_username: data.sender_username,
+              sender_avatar_url: data.sender_avatar_url,
+              original_text: data.original_text ?? data.text ?? '',
               translated_text: data.translated_text ?? null,
               translations: data.translations ?? null,
               detected_lang: data.detected_lang,
               cultural_footnotes: data.cultural_footnotes ?? null,
+              reply_to_id: data.reply_to_id,
+              attachment_url: data.attachment_url,
+              attachment_name: data.attachment_name,
+              attachment_size: data.attachment_size,
+              delivery_status: data.delivery_status ?? 'sent',
               is_me: true,
               status: 'draft',
+              created_at: data.created_at ?? Date.now(),
             });
           }
           break;
         }
 
         case 'message_finalized': {
-          get().addFinalizedMessage({
-            id: data.id,
-            sender_email: data.sender_email,
-            original_text: data.text ?? '',
-            translated_text: data.translated_text ?? null,
-            translations: data.translations ?? null,
-            detected_lang: data.detected_lang,
-            cultural_footnotes: data.cultural_footnotes ?? null,
-            is_me: data.sender_email === myEmail,
-            status: 'final',
-          });
-          break;
-        }
-
-        // Kept for backward compatibility with the older protocol.
-        case 'translation_update': {
-          get().updateDraftTranslation(data.id, data.translated_text ?? '', data.detected_lang);
+          if (data.id && data.sender_email) {
+            get().addFinalizedMessage({
+              id: data.id,
+              sender_email: data.sender_email,
+              sender_username: data.sender_username,
+              sender_avatar_url: data.sender_avatar_url,
+              original_text: data.original_text ?? data.text ?? '',
+              translated_text: data.translated_text ?? null,
+              translations: data.translations ?? null,
+              detected_lang: data.detected_lang,
+              cultural_footnotes: data.cultural_footnotes ?? null,
+              reply_to_id: data.reply_to_id,
+              attachment_url: data.attachment_url,
+              attachment_name: data.attachment_name,
+              attachment_size: data.attachment_size,
+              delivery_status: data.delivery_status ?? 'delivered',
+              is_me: data.sender_email === myEmail,
+              status: 'final',
+              created_at: data.created_at ?? Date.now(),
+            });
+          }
           break;
         }
 
         default:
-          console.warn('[chatStore] Unknown WS message type:', data.type);
+          break;
       }
     };
 
@@ -207,16 +270,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       set({ isConnected: false, ws: null });
 
-      // The backend closes with 1008 (policy violation) when the JWT is
-      // expired/invalid or the user is not a room participant — retrying can
-      // never succeed, so force a re-login immediately.
       if (event.code === 1008) {
         useAuthStore.getState().logout();
         return;
       }
 
-      // Network blips and server restarts: retry with exponential backoff and
-      // give up (forcing a re-login) after MAX_RECONNECT_ATTEMPTS.
       if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         useAuthStore.getState().logout();
         return;
@@ -236,7 +294,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       clearInterval(pingInterval);
       pingInterval = null;
     }
-    // Cancel pending reconnect and close the socket cleanly
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
@@ -244,18 +301,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
     reconnectAttempts = 0;
     const ws = get().ws;
     if (ws) {
-      ws.onclose = null; // Prevent auto-reconnect from firing
+      ws.onclose = null;
       ws.close();
     }
-    set({ ws: null, isConnected: false, connectionError: null, messages: [], drafts: [] });
+    set({ ws: null, isConnected: false, connectionError: null, messages: [], drafts: [], replyTo: null, typingUsers: {} });
   },
 
-  sendDraft: (text) => {
+  sendDraft: (text, extra) => {
     const ws = get().ws;
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'send_draft', text }));
-    } else {
-      console.warn('[chatStore] Cannot send draft — socket not open');
+      ws.send(JSON.stringify({
+        type: 'send_draft',
+        text,
+        reply_to_id: extra?.reply_to_id,
+        attachment_url: extra?.attachment_url,
+        attachment_name: extra?.attachment_name,
+        attachment_size: extra?.attachment_size,
+        message_type: extra?.message_type ?? 'text',
+      }));
+      set({ replyTo: null });
     }
   },
 
@@ -263,17 +327,44 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const ws = get().ws;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'confirm_draft', id, edited_text: editedText }));
-    } else {
-      console.warn('[chatStore] Cannot confirm draft — socket not open');
     }
   },
 
-  sendMessage: (text) => {
+  sendMessage: (text, extra) => {
     const ws = get().ws;
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'send_message', text }));
-    } else {
-      console.warn('[chatStore] Cannot send message — socket not open');
+      ws.send(JSON.stringify({
+        type: 'send_message',
+        text,
+        reply_to_id: extra?.reply_to_id,
+        attachment_url: extra?.attachment_url,
+        attachment_name: extra?.attachment_name,
+        attachment_size: extra?.attachment_size,
+        message_type: extra?.message_type ?? 'text',
+      }));
+      set({ replyTo: null });
     }
+  },
+
+  sendTyping: (isTyping) => {
+    const ws = get().ws;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'typing', is_typing: isTyping }));
+    }
+  },
+
+  sendReadAck: (messageId) => {
+    const ws = get().ws;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'read_ack', message_id: messageId }));
+    }
+  },
+
+  deleteMessage: (messageId) => {
+    const ws = get().ws;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'delete_message', message_id: messageId }));
+    }
+    get().removeMessage(messageId);
   },
 }));

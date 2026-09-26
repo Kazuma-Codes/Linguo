@@ -3,14 +3,14 @@
  *
  * All backend REST calls go through `apiFetch()`, which normalizes error
  * handling and automatically parses JSON. Specific endpoint wrappers
- * (login, register, etc.) are exported below.
+ * (login, register, rooms, contacts, messages, etc.) are exported below.
  */
 
 import { API_BASE_URL } from '@/config';
 import { useAuthStore } from '@/store/useAuthStore';
 
 /** Error class carrying the HTTP status code for easy branching in UI code. */
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
     super(message);
@@ -58,10 +58,6 @@ async function apiFetch(path: string, options: RequestInit = {}, retries = 1): P
 
 /**
  * Log in with email and password.
- *
- * Uses form-urlencoded with a `username` field, matching FastAPI's standard
- * OAuth2PasswordRequestForm. If your backend instead expects JSON {email, password},
- * switch the body/headers accordingly.
  */
 export async function login(email: string, password: string) {
   const formData = new URLSearchParams();
@@ -103,12 +99,32 @@ export async function updatePreferredLanguage(token: string, preferred_language:
   });
 }
 
+/** Update user profile (username, avatar, about, phone) */
+export async function updateProfile(token: string, profile: { username?: string; avatar_url?: string; about?: string; phone?: string }) {
+  return apiFetch('/users/profile', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(profile),
+  });
+}
+
+/** Search users by query */
+export async function searchUsers(token: string, query: string) {
+  return apiFetch(`/users/search?q=${encodeURIComponent(query)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 /** Create a new translation room. */
 export async function createRoom(
   token: string,
   title: string,
   source_lang?: string,
   target_lang?: string,
+  extra?: { description?: string; emoji?: string; avatar_url?: string; is_private?: boolean }
 ) {
   return apiFetch('/rooms', {
     method: 'POST',
@@ -120,13 +136,33 @@ export async function createRoom(
       title,
       source_lang: source_lang || 'en',
       target_lang: target_lang || 'es',
+      room_type: 'group',
+      description: extra?.description,
+      emoji: extra?.emoji || '💬',
+      avatar_url: extra?.avatar_url,
+      is_private: extra?.is_private || false,
     }),
+  });
+}
+
+/** Get or create a 1-on-1 direct room between current user and target user */
+export async function getOrCreateDirectRoom(token: string, targetUserId: string) {
+  return apiFetch(`/rooms/direct/${targetUserId}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
   });
 }
 
 /** List all rooms the current user has joined. */
 export async function listRooms(token: string) {
   return apiFetch('/rooms', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+/** List public discoverable rooms */
+export async function listDiscoverableRooms(token: string) {
+  return apiFetch('/rooms/discover', {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
@@ -139,14 +175,21 @@ export async function joinRoom(token: string, roomId: string) {
   });
 }
 
-/** Fetch a single room's detail, including the current user's seat (my_language). */
+/** Fetch a single room's detail. */
 export async function getRoom(token: string, roomId: string) {
   return apiFetch(`/rooms/${roomId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
 
-/** Change the current user's seat in a room (the "⇄ I speak …" swap button). */
+/** Fetch historical messages for a room */
+export async function getRoomMessages(token: string, roomId: string) {
+  return apiFetch(`/rooms/${roomId}/messages`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+/** Change the current user's seat in a room. */
 export async function setMyLanguage(token: string, roomId: string, language: string) {
   return apiFetch(`/rooms/${roomId}/set-language`, {
     method: 'POST',
@@ -161,6 +204,58 @@ export async function setMyLanguage(token: string, roomId: string, language: str
 /** Fetch list of participants and their language seats in a room. */
 export async function getMembers(token: string, roomId: string) {
   return apiFetch(`/rooms/${roomId}/members`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+/** Contacts API */
+export async function listContacts(token: string) {
+  return apiFetch('/contacts', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function addContact(token: string, contactUserId: string) {
+  return apiFetch(`/contacts/${contactUserId}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function removeContact(token: string, contactUserId: string) {
+  return apiFetch(`/contacts/${contactUserId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function listContactRequests(token: string) {
+  return apiFetch('/contacts/requests', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function sendContactRequest(token: string, targetUserId: string, content?: string) {
+  return apiFetch(`/contacts/requests/${targetUserId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function acceptContactRequest(token: string, requestId: string) {
+  return apiFetch(`/contacts/requests/${requestId}/accept`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function declineContactRequest(token: string, requestId: string) {
+  return apiFetch(`/contacts/requests/${requestId}/decline`, {
+    method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
 }

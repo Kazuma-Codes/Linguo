@@ -1,26 +1,27 @@
 /**
  * Zustand auth store — manages authentication state (token + user).
- *
- * Uses the `persist` middleware so the token survives page reloads via
- * localStorage. `hasHydrated` is set once after rehydration so the UI can
- * distinguish "still loading" from "genuinely logged out".
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface User {
+export interface User {
   id: string;
   email: string;
   preferred_language: string;
+  username?: string;
+  avatar_url?: string;
+  about?: string;
+  phone?: string;
 }
 
 interface AuthState {
   token: string | null;
   user: User | null;
-  hasHydrated: boolean;                  // True once persisted state has been rehydrated
+  hasHydrated: boolean;
   setAuth: (token: string, user: User) => void;
   updatePreferredLanguage: (lang: string) => void;
+  updateUserProfile: (profile: Partial<User>) => void;
   logout: () => void;
   setHasHydrated: (state: boolean) => void;
 }
@@ -36,13 +37,16 @@ export const useAuthStore = create<AuthState>()(
         set((state) => ({
           user: state.user ? { ...state.user, preferred_language: lang } : null,
         })),
+      updateUserProfile: (profile: Partial<User>) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, ...profile } : null,
+        })),
       logout: () => set({ token: null, user: null }),
       setHasHydrated: (state) => set({ hasHydrated: state }),
     }),
     {
-      name: 'auth-storage',               // localStorage key
+      name: 'auth-storage',
       onRehydrateStorage: () => (state) => {
-        // Called once after the persisted state is loaded back.
         state?.setHasHydrated(true);
       },
     },
