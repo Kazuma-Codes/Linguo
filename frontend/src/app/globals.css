@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 :root {
-  /* Light Theme (Default) */
+  /* Light Theme (Default Warm Editorial) */
   --bg: #FBF7F0;
   --bg-subtle: #f4eee3;
   --text: #1C1917;
@@ -13,62 +13,75 @@
   --border: #e7e2d8;
   --card: #ffffff;
   --card-border: #e8e3d9;
+  --card-hover: #faf6ee;
   --input-border: #D6D0C6;
-  --input-focus: #1C1917;
+  --input-focus: #6C5CE7;
+  --primary: #6C5CE7;
+  --primary-hover: #5A49D6;
+  --primary-soft: rgba(108, 92, 231, 0.12);
   --btn-primary-bg: #1C1917;
   --btn-primary-text: #FBF7F0;
   --btn-primary-hover: #38332f;
-  --accent: #38663f;
-  --accent-light: #e8f0d8;
-  --accent-text: #1e4d24;
-  --dashboard-bg: #f0f4ea;
-  --dashboard-card: #fdfff8;
-  --dashboard-btn: #38663f;
+  --accent: #6C5CE7;
+  --accent-light: rgba(108, 92, 231, 0.1);
+  --accent-text: #5A49D6;
+  --dashboard-bg: #F4F6FC;
+  --dashboard-card: #ffffff;
+  --dashboard-btn: #6C5CE7;
   --dashboard-btn-text: #ffffff;
-  --chat-bg: #f3f5fa;
+  --chat-bg: #F4F6FC;
   --chat-card: #ffffff;
-  --chat-bubble-me: #6366f1;
+  --chat-bubble-me: #6C5CE7;
   --chat-bubble-me-text: #ffffff;
-  --chat-bubble-other: #f1f3f9;
-  --chat-bubble-other-text: #1e293b;
+  --chat-bubble-other: #ffffff;
+  --chat-bubble-other-text: #1C1917;
 }
 
 [data-theme="dark"],
 .dark {
-  /* Dark Theme */
-  --bg: #0b0f19;
-  --bg-subtle: #111827;
-  --text: #f3f4f6;
-  --muted: #9ca3af;
-  --border: #1f293d;
-  --card: #131b2e;
-  --card-border: #1f2a44;
-  --input-border: #374151;
-  --input-focus: #60a5fa;
-  --btn-primary-bg: #f3f4f6;
-  --btn-primary-text: #0b0f19;
-  --btn-primary-hover: #e5e7eb;
-  --accent: #4ade80;
-  --accent-light: rgba(74, 222, 128, 0.15);
-  --accent-text: #86efac;
-  --dashboard-bg: #0b0f19;
-  --dashboard-card: #131b2e;
-  --dashboard-btn: #2563eb;
+  /* Dark Theme (Sleek Halo Deep Navy) */
+  --bg: #0D0F14;
+  --bg-subtle: #141721;
+  --text: #F1F3F9;
+  --muted: #8E95A5;
+  --border: #1E2330;
+  --card: #141824;
+  --card-border: #22293A;
+  --card-hover: #1A2030;
+  --input-border: #2B3349;
+  --input-focus: #7C6EF7;
+  --primary: #7C6EF7;
+  --primary-hover: #6C5CE7;
+  --primary-soft: rgba(124, 110, 247, 0.15);
+  --btn-primary-bg: #F1F3F9;
+  --btn-primary-text: #0D0F14;
+  --btn-primary-hover: #e2e5ef;
+  --accent: #7C6EF7;
+  --accent-light: rgba(124, 110, 247, 0.15);
+  --accent-text: #A59BFF;
+  --dashboard-bg: #0A0C10;
+  --dashboard-card: #131722;
+  --dashboard-btn: #7C6EF7;
   --dashboard-btn-text: #ffffff;
-  --chat-bg: #090d16;
-  --chat-card: #111827;
-  --chat-bubble-me: #4f46e5;
+  --chat-bg: #0A0C10;
+  --chat-card: #131722;
+  --chat-bubble-me: #6C5CE7;
   --chat-bubble-me-text: #ffffff;
-  --chat-bubble-other: #1f2937;
-  --chat-bubble-other-text: #f3f4f6;
+  --chat-bubble-other: #1A2030;
+  --chat-bubble-other-text: #F1F3F9;
 }
 
-body {
+html, body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
-  transition: background-color 0.25s ease, color 0.25s ease;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
   min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 .font-serif-display {
@@ -81,8 +94,8 @@ body {
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -95,3 +108,9 @@ body {
   background: var(--muted);
 }
 
+/* Touch active styles */
+@media (hover: none) {
+  button:active {
+    transform: scale(0.97);
+  }
+}
