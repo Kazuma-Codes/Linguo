@@ -2,11 +2,16 @@ package com.mosaic.model.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.time.Instant;
 import java.util.UUID;
 
-public class UserResponse {
+public class ContactResponse {
 
     private UUID id;
+
+    @JsonProperty("user_id")
+    private UUID userId;
+
     private String email;
     private String username;
 
@@ -19,41 +24,32 @@ public class UserResponse {
     @JsonProperty("preferred_language")
     private String preferredLanguage;
 
-    public UserResponse() {}
+    @JsonProperty("direct_room_id")
+    private UUID directRoomId;
 
-    public UserResponse(UUID id, String email, String username, String avatarUrl, String about, String phone, String preferredLanguage) {
+    @JsonProperty("created_at")
+    private Instant createdAt;
+
+    public ContactResponse() {}
+
+    public ContactResponse(UUID id, UUID userId, String email, String username, String avatarUrl,
+                           String about, String phone, String preferredLanguage, UUID directRoomId, Instant createdAt) {
         this.id = id;
+        this.userId = userId;
         this.email = email;
-        this.username = username != null ? username : (email != null ? email.split("@")[0] : null);
+        this.username = username;
         this.avatarUrl = avatarUrl;
         this.about = about;
         this.phone = phone;
         this.preferredLanguage = preferredLanguage;
-    }
-
-    public static Builder builder() { return new Builder(); }
-
-    public static class Builder {
-        private UUID id;
-        private String email;
-        private String username;
-        private String avatarUrl;
-        private String about;
-        private String phone;
-        private String preferredLanguage;
-
-        public Builder id(UUID id) { this.id = id; return this; }
-        public Builder email(String email) { this.email = email; return this; }
-        public Builder username(String username) { this.username = username; return this; }
-        public Builder avatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; return this; }
-        public Builder about(String about) { this.about = about; return this; }
-        public Builder phone(String phone) { this.phone = phone; return this; }
-        public Builder preferredLanguage(String preferredLanguage) { this.preferredLanguage = preferredLanguage; return this; }
-        public UserResponse build() { return new UserResponse(id, email, username, avatarUrl, about, phone, preferredLanguage); }
+        this.directRoomId = directRoomId;
+        this.createdAt = createdAt;
     }
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
+    public UUID getUserId() { return userId; }
+    public void setUserId(UUID userId) { this.userId = userId; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
     public String getUsername() { return username; }
@@ -66,4 +62,8 @@ public class UserResponse {
     public void setPhone(String phone) { this.phone = phone; }
     public String getPreferredLanguage() { return preferredLanguage; }
     public void setPreferredLanguage(String preferredLanguage) { this.preferredLanguage = preferredLanguage; }
+    public UUID getDirectRoomId() { return directRoomId; }
+    public void setDirectRoomId(UUID directRoomId) { this.directRoomId = directRoomId; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

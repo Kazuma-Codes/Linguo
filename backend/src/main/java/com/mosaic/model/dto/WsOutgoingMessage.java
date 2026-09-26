@@ -14,6 +14,12 @@ public class WsOutgoingMessage {
     @JsonProperty("sender_email")
     private String senderEmail;
 
+    @JsonProperty("sender_username")
+    private String senderUsername;
+
+    @JsonProperty("sender_avatar_url")
+    private String senderAvatarUrl;
+
     private String text;
 
     @JsonProperty("original_text")
@@ -39,22 +45,31 @@ public class WsOutgoingMessage {
     @JsonProperty("audio_url")
     private String audioUrl;
 
-    public WsOutgoingMessage() {}
+    @JsonProperty("reply_to_id")
+    private String replyToId;
 
-    public WsOutgoingMessage(String type, String id, String senderEmail, String text, String originalText, String translatedText, String detectedLang, Object culturalFootnotes, Map<String, String> translations, String status, String ttsUrl, String audioUrl) {
-        this.type = type;
-        this.id = id;
-        this.senderEmail = senderEmail;
-        this.text = text;
-        this.originalText = originalText;
-        this.translatedText = translatedText;
-        this.detectedLang = detectedLang;
-        this.culturalFootnotes = culturalFootnotes;
-        this.translations = translations;
-        this.status = status;
-        this.ttsUrl = ttsUrl;
-        this.audioUrl = audioUrl;
-    }
+    @JsonProperty("attachment_url")
+    private String attachmentUrl;
+
+    @JsonProperty("attachment_name")
+    private String attachmentName;
+
+    @JsonProperty("attachment_size")
+    private Long attachmentSize;
+
+    @JsonProperty("delivery_status")
+    private String deliveryStatus;
+
+    @JsonProperty("message_type")
+    private String messageType;
+
+    @JsonProperty("is_typing")
+    private Boolean isTyping;
+
+    @JsonProperty("created_at")
+    private Long createdAt;
+
+    public WsOutgoingMessage() {}
 
     public static Builder builder() { return new Builder(); }
 
@@ -62,6 +77,8 @@ public class WsOutgoingMessage {
         private String type;
         private String id;
         private String senderEmail;
+        private String senderUsername;
+        private String senderAvatarUrl;
         private String text;
         private String originalText;
         private String translatedText;
@@ -71,10 +88,20 @@ public class WsOutgoingMessage {
         private String status;
         private String ttsUrl;
         private String audioUrl;
+        private String replyToId;
+        private String attachmentUrl;
+        private String attachmentName;
+        private Long attachmentSize;
+        private String deliveryStatus;
+        private String messageType = "text";
+        private Boolean isTyping;
+        private Long createdAt;
 
         public Builder type(String type) { this.type = type; return this; }
         public Builder id(String id) { this.id = id; return this; }
         public Builder senderEmail(String senderEmail) { this.senderEmail = senderEmail; return this; }
+        public Builder senderUsername(String senderUsername) { this.senderUsername = senderUsername; return this; }
+        public Builder senderAvatarUrl(String senderAvatarUrl) { this.senderAvatarUrl = senderAvatarUrl; return this; }
         public Builder text(String text) { this.text = text; return this; }
         public Builder originalText(String originalText) { this.originalText = originalText; return this; }
         public Builder translatedText(String translatedText) { this.translatedText = translatedText; return this; }
@@ -84,9 +111,40 @@ public class WsOutgoingMessage {
         public Builder status(String status) { this.status = status; return this; }
         public Builder ttsUrl(String ttsUrl) { this.ttsUrl = ttsUrl; return this; }
         public Builder audioUrl(String audioUrl) { this.audioUrl = audioUrl; return this; }
+        public Builder replyToId(String replyToId) { this.replyToId = replyToId; return this; }
+        public Builder attachmentUrl(String attachmentUrl) { this.attachmentUrl = attachmentUrl; return this; }
+        public Builder attachmentName(String attachmentName) { this.attachmentName = attachmentName; return this; }
+        public Builder attachmentSize(Long attachmentSize) { this.attachmentSize = attachmentSize; return this; }
+        public Builder deliveryStatus(String deliveryStatus) { this.deliveryStatus = deliveryStatus; return this; }
+        public Builder messageType(String messageType) { this.messageType = messageType; return this; }
+        public Builder isTyping(Boolean isTyping) { this.isTyping = isTyping; return this; }
+        public Builder createdAt(Long createdAt) { this.createdAt = createdAt; return this; }
 
         public WsOutgoingMessage build() {
-            return new WsOutgoingMessage(type, id, senderEmail, text, originalText, translatedText, detectedLang, culturalFootnotes, translations, status, ttsUrl, audioUrl);
+            WsOutgoingMessage msg = new WsOutgoingMessage();
+            msg.type = this.type;
+            msg.id = this.id;
+            msg.senderEmail = this.senderEmail;
+            msg.senderUsername = this.senderUsername;
+            msg.senderAvatarUrl = this.senderAvatarUrl;
+            msg.text = this.text;
+            msg.originalText = this.originalText;
+            msg.translatedText = this.translatedText;
+            msg.detectedLang = this.detectedLang;
+            msg.culturalFootnotes = this.culturalFootnotes;
+            msg.translations = this.translations;
+            msg.status = this.status;
+            msg.ttsUrl = this.ttsUrl;
+            msg.audioUrl = this.audioUrl;
+            msg.replyToId = this.replyToId;
+            msg.attachmentUrl = this.attachmentUrl;
+            msg.attachmentName = this.attachmentName;
+            msg.attachmentSize = this.attachmentSize;
+            msg.deliveryStatus = this.deliveryStatus;
+            msg.messageType = this.messageType;
+            msg.isTyping = this.isTyping;
+            msg.createdAt = this.createdAt;
+            return msg;
         }
     }
 
@@ -96,6 +154,10 @@ public class WsOutgoingMessage {
     public void setId(String id) { this.id = id; }
     public String getSenderEmail() { return senderEmail; }
     public void setSenderEmail(String senderEmail) { this.senderEmail = senderEmail; }
+    public String getSenderUsername() { return senderUsername; }
+    public void setSenderUsername(String senderUsername) { this.senderUsername = senderUsername; }
+    public String getSenderAvatarUrl() { return senderAvatarUrl; }
+    public void setSenderAvatarUrl(String senderAvatarUrl) { this.senderAvatarUrl = senderAvatarUrl; }
     public String getText() { return text; }
     public void setText(String text) { this.text = text; }
     public String getOriginalText() { return originalText; }
@@ -114,4 +176,20 @@ public class WsOutgoingMessage {
     public void setTtsUrl(String ttsUrl) { this.ttsUrl = ttsUrl; }
     public String getAudioUrl() { return audioUrl; }
     public void setAudioUrl(String audioUrl) { this.audioUrl = audioUrl; }
+    public String getReplyToId() { return replyToId; }
+    public void setReplyToId(String replyToId) { this.replyToId = replyToId; }
+    public String getAttachmentUrl() { return attachmentUrl; }
+    public void setAttachmentUrl(String attachmentUrl) { this.attachmentUrl = attachmentUrl; }
+    public String getAttachmentName() { return attachmentName; }
+    public void setAttachmentName(String attachmentName) { this.attachmentName = attachmentName; }
+    public Long getAttachmentSize() { return attachmentSize; }
+    public void setAttachmentSize(Long attachmentSize) { this.attachmentSize = attachmentSize; }
+    public String getDeliveryStatus() { return deliveryStatus; }
+    public void setDeliveryStatus(String deliveryStatus) { this.deliveryStatus = deliveryStatus; }
+    public String getMessageType() { return messageType; }
+    public void setMessageType(String messageType) { this.messageType = messageType; }
+    public Boolean getIsTyping() { return isTyping; }
+    public void setIsTyping(Boolean isTyping) { this.isTyping = isTyping; }
+    public Long getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Long createdAt) { this.createdAt = createdAt; }
 }

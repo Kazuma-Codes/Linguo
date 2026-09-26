@@ -1,4 +1,3 @@
-
 package com.mosaic.websocket;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -137,9 +136,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                         session.sendMessage(new TextMessage("{\"type\":\"pong\"}"));
                     }
                 }
-                case "send_draft" -> chatService.handleSendDraft(roomId, incoming.getText(), user);
+                case "typing" -> chatService.handleTyping(roomId, incoming.getIsTyping(), user);
+                case "read_ack" -> chatService.handleReadAck(roomId, incoming.getMessageId(), user);
+                case "delete_message" -> chatService.handleDeleteMessage(roomId, incoming.getMessageId(), user);
+                case "send_draft" -> chatService.handleSendDraft(roomId, incoming, user);
                 case "confirm_draft" -> chatService.handleConfirmDraft(roomId, incoming.getId(), incoming.getEditedText(), user);
-                case "send_message", "direct_send" -> chatService.handleDirectSend(roomId, incoming.getText(), user);
+                case "send_message", "direct_send" -> chatService.handleDirectSend(roomId, incoming, user);
                 default -> throw new IllegalArgumentException("Unsupported message type");
             }
         } catch (JsonProcessingException | IllegalArgumentException e) {
@@ -210,9 +212,24 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     throw new IllegalArgumentException("Ping payload must not contain message fields");
                 }
             }
+            case "typing" -> {
+                if (incoming.getIsTyping() == null) {
+                    throw new IllegalArgumentException("is_typing is required");
+                }
+            }
+            case "read_ack", "delete_message" -> {
+                if (incoming.getMessageId() == null || incoming.getMessageId().isBlank()) {
+                    throw new IllegalArgumentException("message_id is required");
+                }
+            }
             case "send_draft", "send_message", "direct_send" -> {
-                if (incoming.getText() == null || incoming.getText().isBlank() || incoming.getText().length() > 10000) {
-                    throw new IllegalArgumentException("Text is required");
+                boolean hasText = incoming.getText() != null && !incoming.getText().isBlank();
+                boolean hasAttachment = incoming.getAttachmentUrl() != null && !incoming.getAttachmentUrl().isBlank();
+                if (!hasText && !hasAttachment) {
+                    throw new IllegalArgumentException("Text or attachment is required");
+                }
+                if (hasText && incoming.getText().length() > 10000) {
+                    throw new IllegalArgumentException("Text is too long");
                 }
             }
             case "confirm_draft" -> {

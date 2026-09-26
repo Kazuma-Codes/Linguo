@@ -29,9 +29,22 @@ public class RoomController {
         return roomService.createRoom(request, currentUser);
     }
 
+    @PostMapping("/rooms/direct/{targetUserId}")
+    public RoomResponse getOrCreateDirectRoom(
+            @PathVariable UUID targetUserId,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        return roomService.getOrCreateDirectRoom(targetUserId, currentUser);
+    }
+
     @GetMapping("/rooms")
     public List<RoomResponse> listRooms(@AuthenticationPrincipal User currentUser) {
         return roomService.listRooms(currentUser);
+    }
+
+    @GetMapping("/rooms/discover")
+    public List<RoomResponse> listDiscoverableRooms(@AuthenticationPrincipal User currentUser) {
+        return roomService.listDiscoverableRooms(currentUser);
     }
 
     @PostMapping("/rooms/{roomId}/join")
@@ -48,6 +61,14 @@ public class RoomController {
             @AuthenticationPrincipal User currentUser
     ) {
         return roomService.getRoom(roomId, currentUser);
+    }
+
+    @GetMapping("/rooms/{roomId}/messages")
+    public List<MessageResponse> getRoomMessages(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        return roomService.getRoomMessages(roomId, currentUser);
     }
 
     @GetMapping("/rooms/{roomId}/members")

@@ -1,22 +1,27 @@
 package com.mosaic.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mosaic.model.dto.MemberResponse;
+import com.mosaic.model.dto.MessageResponse;
 import com.mosaic.model.dto.RoomCreateRequest;
 import com.mosaic.model.dto.RoomDetailResponse;
 import com.mosaic.model.dto.RoomResponse;
 import com.mosaic.model.entity.ChatParticipant;
 import com.mosaic.model.entity.ChatRoom;
+import com.mosaic.model.entity.Message;
 import com.mosaic.model.entity.User;
 import com.mosaic.repository.ChatParticipantRepository;
 import com.mosaic.repository.ChatRoomRepository;
+import com.mosaic.repository.MessageRepository;
+import com.mosaic.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,12 +29,23 @@ public class RoomService {
 
     private final ChatRoomRepository roomRepository;
     private final ChatParticipantRepository participantRepository;
+    private final MessageRepository messageRepository;
+    private final UserRepository userRepository;
     private final TranslationService translationService;
+    private final ObjectMapper objectMapper;
 
-    public RoomService(ChatRoomRepository roomRepository, ChatParticipantRepository participantRepository, TranslationService translationService) {
+    public RoomService(ChatRoomRepository roomRepository,
+                       ChatParticipantRepository participantRepository,
+                       MessageRepository messageRepository,
+                       UserRepository userRepository,
+                       TranslationService translationService,
+                       ObjectMapper objectMapper) {
         this.roomRepository = roomRepository;
         this.participantRepository = participantRepository;
+        this.messageRepository = messageRepository;
+        this.userRepository = userRepository;
         this.translationService = translationService;
+        this.objectMapper = objectMapper;
     }
 
     private String norm(String lang) {
@@ -48,13 +64,17 @@ public class RoomService {
     @Transactional
     public RoomResponse createRoom(RoomCreateRequest request, User currentUser) {
         String defaultSrc = currentUser.getPreferredLanguage() != null ? currentUser.getPreferredLanguage() : "en";
-        // Target lang column is maintained for backward-compatibility only
         String defaultTgt = "en".equals(defaultSrc) ? "es" : "en";
 
         ChatRoom room = ChatRoom.builder()
                 .title(request.getTitle() != null && !request.getTitle().isBlank() ? request.getTitle().trim() : "New Room")
                 .sourceLang(request.getSourceLang() != null && !request.getSourceLang().isBlank() ? request.getSourceLang() : defaultSrc)
                 .targetLang(defaultTgt)
+                .roomType(request.getRoomType() != null ? request.getRoomType() : "group")
+                .description(request.getDescription())
+                .emoji(request.getEmoji() != null ? request.getEmoji() : "💬")
+                .avatarUrl(request.getAvatarUrl())
+                .isPrivate(request.getIsPrivate() != null ? request.getIsPrivate() : false)
                 .maxMembers(50)
                 .creator(currentUser)
                 .build();
@@ -70,23 +90,68 @@ public class RoomService {
 
         participantRepository.save(participant);
 
-        return RoomResponse.builder()
-                .id(room.getId())
-                .title(room.getTitle())
-                .sourceLang(room.getSourceLang())
-                .targetLang(room.getTargetLang())
+        return toRoomResponse(room, currentUser);
+    }
+
+    @Transactional
+    public RoomResponse getOrCreateDirectRoom(UUID targetUserId, User currentUser) {
+        if (targetUserId.equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot create direct chat with yourself");
+        }
+
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target user not found"));
+
+        Optional<ChatRoom> existingDirect = roomRepository.findDirectRoomBetweenUsers(currentUser.getId(), targetUserId);
+        if (existingDirect.isPresent()) {
+            return toRoomResponse(existingDirect.get(), currentUser);
+        }
+
+        String myLang = currentUser.getPreferredLanguage() != null ? currentUser.getPreferredLanguage() : "en";
+        String theirLang = targetUser.getPreferredLanguage() != null ? targetUser.getPreferredLanguage() : "en";
+
+        ChatRoom room = ChatRoom.builder()
+                .title("Direct Chat")
+                .sourceLang(myLang)
+                .targetLang(theirLang)
+                .roomType("direct")
+                .emoji("💬")
+                .isPrivate(true)
+                .maxMembers(2)
+                .creator(currentUser)
                 .build();
+
+        room = roomRepository.save(room);
+
+        ChatParticipant p1 = ChatParticipant.builder()
+                .room(room)
+                .user(currentUser)
+                .language(myLang)
+                .build();
+        ChatParticipant p2 = ChatParticipant.builder()
+                .room(room)
+                .user(targetUser)
+                .language(theirLang)
+                .build();
+
+        participantRepository.save(p1);
+        participantRepository.save(p2);
+
+        return toRoomResponse(room, currentUser);
     }
 
     @Transactional(readOnly = true)
     public List<RoomResponse> listRooms(User currentUser) {
         return roomRepository.findAllByParticipantUserId(currentUser.getId()).stream()
-                .map(room -> RoomResponse.builder()
-                        .id(room.getId())
-                        .title(room.getTitle())
-                        .sourceLang(room.getSourceLang())
-                        .targetLang(room.getTargetLang())
-                        .build())
+                .map(room -> toRoomResponse(room, currentUser))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<RoomResponse> listDiscoverableRooms(User currentUser) {
+        return roomRepository.findAllByRoomTypeAndIsPrivateFalseOrderByCreatedAtDesc("group").stream()
+                .filter(room -> !participantRepository.existsByRoomIdAndUserId(room.getId(), currentUser.getId()))
+                .map(room -> toRoomResponse(room, currentUser))
                 .collect(Collectors.toList());
     }
 
@@ -142,7 +207,10 @@ public class RoomService {
         List<ChatParticipant> allParticipants = participantRepository.findAllByRoomId(roomId);
         List<MemberResponse> members = allParticipants.stream()
                 .map(p -> MemberResponse.builder()
+                        .userId(p.getUser().getId())
                         .email(p.getUser().getEmail())
+                        .username(p.getUser().getUsername() != null ? p.getUser().getUsername() : p.getUser().getEmail().split("@")[0])
+                        .avatarUrl(p.getUser().getAvatarUrl())
                         .language(norm(p.getLanguage()))
                         .joinedAt(p.getJoinedAt())
                         .build())
@@ -154,16 +222,91 @@ public class RoomService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        return RoomDetailResponse.detailBuilder()
-                .id(room.getId())
-                .title(room.getTitle())
-                .sourceLang(room.getSourceLang())
-                .targetLang(room.getTargetLang())
-                .creatorId(room.getCreator().getId())
-                .myLanguage(norm(participant.getLanguage()))
-                .members(members)
-                .distinctLangs(distinctLangs)
-                .build();
+        String displayTitle = room.getTitle();
+        String displayAvatar = room.getAvatarUrl();
+        if ("direct".equalsIgnoreCase(room.getRoomType())) {
+            Optional<ChatParticipant> other = allParticipants.stream()
+                    .filter(p -> !p.getUser().getId().equals(currentUser.getId()))
+                    .findFirst();
+            if (other.isPresent()) {
+                User ou = other.get().getUser();
+                displayTitle = ou.getUsername() != null ? ou.getUsername() : ou.getEmail().split("@")[0];
+                displayAvatar = ou.getAvatarUrl();
+            }
+        }
+
+        RoomDetailResponse r = new RoomDetailResponse();
+        r.setId(room.getId());
+        r.setTitle(displayTitle);
+        r.setSourceLang(room.getSourceLang());
+        r.setTargetLang(room.getTargetLang());
+        r.setRoomType(room.getRoomType());
+        r.setDescription(room.getDescription());
+        r.setEmoji(room.getEmoji());
+        r.setAvatarUrl(displayAvatar);
+        r.setIsPrivate(room.getIsPrivate());
+        r.setMembersCount(allParticipants.size());
+        r.setCreatorId(room.getCreator().getId());
+        r.setMyLanguage(norm(participant.getLanguage()));
+        r.setMembers(members);
+        r.setDistinctLangs(distinctLangs);
+        return r;
+    }
+
+    @Transactional
+    public List<MessageResponse> getRoomMessages(UUID roomId, User currentUser) {
+        if (!roomRepository.existsById(roomId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found");
+        }
+
+        if (!participantRepository.existsByRoomIdAndUserId(roomId, currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a participant of this room");
+        }
+
+        // Mark incoming messages as read
+        messageRepository.markRoomMessagesAsRead(roomId, currentUser.getId(), "read");
+
+        List<Message> messages = messageRepository.findAllByRoomIdAndStatusOrderByCreatedAtAsc(roomId, "final");
+
+        return messages.stream().map(m -> {
+            Map<String, String> parsedTranslations = null;
+            if (m.getTranslations() != null && !m.getTranslations().isBlank()) {
+                try {
+                    parsedTranslations = objectMapper.readValue(m.getTranslations(), new TypeReference<Map<String, String>>() {});
+                } catch (Exception ignored) {}
+            }
+
+            Object parsedFootnotes = null;
+            if (m.getCulturalFootnotes() != null && !m.getCulturalFootnotes().isBlank()) {
+                try {
+                    parsedFootnotes = objectMapper.readValue(m.getCulturalFootnotes(), new TypeReference<Map<String, Object>>() {});
+                } catch (Exception ignored) {}
+            }
+
+            User sender = m.getSender();
+            return MessageResponse.builder()
+                    .id(m.getId())
+                    .roomId(roomId)
+                    .senderId(sender.getId())
+                    .senderEmail(sender.getEmail())
+                    .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
+                    .senderAvatarUrl(sender.getAvatarUrl())
+                    .originalText(m.getOriginalText())
+                    .translatedText(m.getTranslatedText())
+                    .detectedLang(m.getDetectedLang())
+                    .translations(parsedTranslations)
+                    .culturalFootnotes(parsedFootnotes)
+                    .messageType(m.getMessageType())
+                    .replyToId(m.getReplyToId())
+                    .attachmentUrl(m.getAttachmentUrl())
+                    .attachmentName(m.getAttachmentName())
+                    .attachmentSize(m.getAttachmentSize())
+                    .deliveryStatus(m.getDeliveryStatus())
+                    .status(m.getStatus())
+                    .isMe(sender.getId().equals(currentUser.getId()))
+                    .createdAt(m.getCreatedAt())
+                    .build();
+        }).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -178,7 +321,10 @@ public class RoomService {
 
         return participantRepository.findAllByRoomId(roomId).stream()
                 .map(p -> MemberResponse.builder()
+                        .userId(p.getUser().getId())
                         .email(p.getUser().getEmail())
+                        .username(p.getUser().getUsername() != null ? p.getUser().getUsername() : p.getUser().getEmail().split("@")[0])
+                        .avatarUrl(p.getUser().getAvatarUrl())
                         .language(norm(p.getLanguage()))
                         .joinedAt(p.getJoinedAt())
                         .build())
@@ -201,30 +347,49 @@ public class RoomService {
         participant.setLanguage(normNew);
         participantRepository.save(participant);
 
-        List<ChatParticipant> allParticipants = participantRepository.findAllByRoomId(roomId);
-        List<MemberResponse> members = allParticipants.stream()
-                .map(p -> MemberResponse.builder()
-                        .email(p.getUser().getEmail())
-                        .language(norm(p.getLanguage()))
-                        .joinedAt(p.getJoinedAt())
-                        .build())
-                .collect(Collectors.toList());
+        return getRoom(roomId, currentUser);
+    }
 
-        List<String> distinctLangs = allParticipants.stream()
-                .map(p -> norm(p.getLanguage()))
-                .filter(lang -> lang != null && TranslationService.LANG_MAP.containsKey(lang))
-                .distinct()
-                .collect(Collectors.toList());
+    private RoomResponse toRoomResponse(ChatRoom room, User currentUser) {
+        String displayTitle = room.getTitle();
+        String displayAvatar = room.getAvatarUrl();
 
-        return RoomDetailResponse.detailBuilder()
+        if ("direct".equalsIgnoreCase(room.getRoomType())) {
+            List<ChatParticipant> participants = participantRepository.findAllByRoomId(room.getId());
+            Optional<ChatParticipant> other = participants.stream()
+                    .filter(p -> !p.getUser().getId().equals(currentUser.getId()))
+                    .findFirst();
+            if (other.isPresent()) {
+                User ou = other.get().getUser();
+                displayTitle = ou.getUsername() != null ? ou.getUsername() : ou.getEmail().split("@")[0];
+                displayAvatar = ou.getAvatarUrl();
+            }
+        }
+
+        List<Message> msgs = room.getMessages();
+        String lastMsg = null;
+        Instant lastMsgAt = room.getCreatedAt();
+        if (msgs != null && !msgs.isEmpty()) {
+            Message last = msgs.get(msgs.size() - 1);
+            lastMsg = last.getOriginalText();
+            lastMsgAt = last.getCreatedAt();
+        }
+
+        int count = room.getParticipants() != null ? room.getParticipants().size() : 1;
+
+        return RoomResponse.builder()
                 .id(room.getId())
-                .title(room.getTitle())
+                .title(displayTitle)
                 .sourceLang(room.getSourceLang())
                 .targetLang(room.getTargetLang())
-                .creatorId(room.getCreator().getId())
-                .myLanguage(normNew)
-                .members(members)
-                .distinctLangs(distinctLangs)
+                .roomType(room.getRoomType())
+                .description(room.getDescription())
+                .emoji(room.getEmoji())
+                .avatarUrl(displayAvatar)
+                .isPrivate(room.getIsPrivate())
+                .membersCount(count)
+                .lastMessage(lastMsg)
+                .lastMessageAt(lastMsgAt)
                 .build();
     }
 }

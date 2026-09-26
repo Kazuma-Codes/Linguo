@@ -3,6 +3,7 @@ package com.mosaic.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mosaic.model.dto.CulturalFootnotes;
+import com.mosaic.model.dto.WsIncomingMessage;
 import com.mosaic.model.dto.WsOutgoingMessage;
 import com.mosaic.model.entity.ChatParticipant;
 import com.mosaic.model.entity.ChatRoom;
@@ -62,7 +63,8 @@ public class ChatService {
     }
 
     @Transactional
-    public void handleSendDraft(String roomIdStr, String text, User sender) {
+    public void handleSendDraft(String roomIdStr, WsIncomingMessage incoming, User sender) {
+        String text = incoming.getText();
         if (text == null || text.isBlank()) {
             return;
         }
@@ -73,13 +75,25 @@ public class ChatService {
             return;
         }
 
+        UUID replyTo = null;
+        if (incoming.getReplyToId() != null && !incoming.getReplyToId().isBlank()) {
+            try {
+                replyTo = UUID.fromString(incoming.getReplyToId());
+            } catch (Exception ignored) {}
+        }
+
         Message msg = Message.builder()
                 .room(room)
                 .sender(sender)
                 .originalText(text)
                 .detectedLang("pending")
                 .status("draft")
-                .messageType("text")
+                .messageType(incoming.getMessageType() != null ? incoming.getMessageType() : "text")
+                .replyToId(replyTo)
+                .attachmentUrl(incoming.getAttachmentUrl())
+                .attachmentName(incoming.getAttachmentName())
+                .attachmentSize(incoming.getAttachmentSize())
+                .deliveryStatus("sent")
                 .build();
 
         msg = messageRepository.save(msg);
@@ -89,10 +103,19 @@ public class ChatService {
                 .type("draft_ready")
                 .id(msg.getId().toString())
                 .senderEmail(sender.getEmail())
+                .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
+                .senderAvatarUrl(sender.getAvatarUrl())
                 .text(text)
                 .originalText(text)
                 .translatedText(null)
+                .replyToId(msg.getReplyToId() != null ? msg.getReplyToId().toString() : null)
+                .attachmentUrl(msg.getAttachmentUrl())
+                .attachmentName(msg.getAttachmentName())
+                .attachmentSize(msg.getAttachmentSize())
+                .messageType(msg.getMessageType())
+                .deliveryStatus("sent")
                 .status("draft")
+                .createdAt(msg.getCreatedAt() != null ? msg.getCreatedAt().toEpochMilli() : System.currentTimeMillis())
                 .build();
 
         redisPubSubService.publish(roomIdStr, immediateDraft);
@@ -110,8 +133,15 @@ public class ChatService {
         }
     }
 
+    public void handleSendDraft(String roomIdStr, String text, User sender) {
+        WsIncomingMessage inc = new WsIncomingMessage();
+        inc.setText(text);
+        handleSendDraft(roomIdStr, inc, sender);
+    }
+
     @Transactional
-    public void handleDirectSend(String roomIdStr, String text, User sender) {
+    public void handleDirectSend(String roomIdStr, WsIncomingMessage incoming, User sender) {
+        String text = incoming.getText();
         if (text == null || text.isBlank()) {
             return;
         }
@@ -125,6 +155,13 @@ public class ChatService {
         String detectedRaw = languageDetectionService.detectLanguage(text);
         String detCode = detectedRaw != null ? translationService.normLang(detectedRaw) : null;
 
+        UUID replyTo = null;
+        if (incoming.getReplyToId() != null && !incoming.getReplyToId().isBlank()) {
+            try {
+                replyTo = UUID.fromString(incoming.getReplyToId());
+            } catch (Exception ignored) {}
+        }
+
         Message msg = Message.builder()
                 .room(room)
                 .sender(sender)
@@ -132,7 +169,12 @@ public class ChatService {
                 .translatedText(text)
                 .detectedLang(detCode)
                 .status("final")
-                .messageType("text")
+                .messageType(incoming.getMessageType() != null ? incoming.getMessageType() : "text")
+                .replyToId(replyTo)
+                .attachmentUrl(incoming.getAttachmentUrl())
+                .attachmentName(incoming.getAttachmentName())
+                .attachmentSize(incoming.getAttachmentSize())
+                .deliveryStatus("delivered")
                 .build();
 
         msg = messageRepository.saveAndFlush(msg);
@@ -141,15 +183,81 @@ public class ChatService {
                 .type("message_finalized")
                 .id(msg.getId().toString())
                 .senderEmail(sender.getEmail())
+                .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
+                .senderAvatarUrl(sender.getAvatarUrl())
                 .originalText(text)
                 .text(text)
                 .translatedText(null)
                 .detectedLang(detCode)
+                .replyToId(msg.getReplyToId() != null ? msg.getReplyToId().toString() : null)
+                .attachmentUrl(msg.getAttachmentUrl())
+                .attachmentName(msg.getAttachmentName())
+                .attachmentSize(msg.getAttachmentSize())
+                .messageType(msg.getMessageType())
+                .deliveryStatus("delivered")
                 .status("final")
+                .createdAt(msg.getCreatedAt() != null ? msg.getCreatedAt().toEpochMilli() : System.currentTimeMillis())
                 .build();
 
         redisPubSubService.publish(roomIdStr, finalizedMsg);
         log.info("Direct message finalized immediately: {}", msg.getId());
+    }
+
+    public void handleDirectSend(String roomIdStr, String text, User sender) {
+        WsIncomingMessage inc = new WsIncomingMessage();
+        inc.setText(text);
+        handleDirectSend(roomIdStr, inc, sender);
+    }
+
+    public void handleTyping(String roomIdStr, Boolean isTyping, User sender) {
+        WsOutgoingMessage typingMsg = WsOutgoingMessage.builder()
+                .type("typing")
+                .senderEmail(sender.getEmail())
+                .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
+                .senderAvatarUrl(sender.getAvatarUrl())
+                .isTyping(isTyping != null && isTyping)
+                .build();
+        redisPubSubService.publish(roomIdStr, typingMsg);
+    }
+
+    @Transactional
+    public void handleReadAck(String roomIdStr, String messageIdStr, User sender) {
+        if (messageIdStr != null && !messageIdStr.isBlank()) {
+            try {
+                UUID msgId = UUID.fromString(messageIdStr);
+                messageRepository.findById(msgId).ifPresent(m -> {
+                    m.setDeliveryStatus("read");
+                    messageRepository.save(m);
+                });
+            } catch (Exception ignored) {}
+        }
+
+        WsOutgoingMessage readMsg = WsOutgoingMessage.builder()
+                .type("read_ack")
+                .id(messageIdStr)
+                .senderEmail(sender.getEmail())
+                .deliveryStatus("read")
+                .build();
+        redisPubSubService.publish(roomIdStr, readMsg);
+    }
+
+    @Transactional
+    public void handleDeleteMessage(String roomIdStr, String messageIdStr, User sender) {
+        if (messageIdStr == null || messageIdStr.isBlank()) return;
+        try {
+            UUID msgId = UUID.fromString(messageIdStr);
+            messageRepository.findById(msgId).ifPresent(m -> {
+                if (m.getSender().getId().equals(sender.getId())) {
+                    messageRepository.delete(m);
+                    WsOutgoingMessage deleteMsg = WsOutgoingMessage.builder()
+                            .type("message_deleted")
+                            .id(messageIdStr)
+                            .senderEmail(sender.getEmail())
+                            .build();
+                    redisPubSubService.publish(roomIdStr, deleteMsg);
+                }
+            });
+        } catch (Exception ignored) {}
     }
 
     private String translateWithCache(String text, String src, String dst) {
@@ -276,12 +384,21 @@ public class ChatService {
                     .type("draft_ready")
                     .id(messageId.toString())
                     .senderEmail(sender.getEmail())
+                    .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
+                    .senderAvatarUrl(sender.getAvatarUrl())
                     .originalText(original)
                     .text(original)
                     .translatedText(translated)
                     .detectedLang(detCode)
                     .translations(translations.isEmpty() ? null : translations)
+                    .replyToId(msg.getReplyToId() != null ? msg.getReplyToId().toString() : null)
+                    .attachmentUrl(msg.getAttachmentUrl())
+                    .attachmentName(msg.getAttachmentName())
+                    .attachmentSize(msg.getAttachmentSize())
+                    .messageType(msg.getMessageType())
+                    .deliveryStatus("sent")
                     .status("draft")
+                    .createdAt(msg.getCreatedAt() != null ? msg.getCreatedAt().toEpochMilli() : System.currentTimeMillis())
                     .build();
 
             redisPubSubService.publish(roomIdStr, translatedDraft);
@@ -305,13 +422,22 @@ public class ChatService {
                             .type("draft_ready")
                             .id(messageId.toString())
                             .senderEmail(sender.getEmail())
+                            .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
+                            .senderAvatarUrl(sender.getAvatarUrl())
                             .originalText(original)
                             .text(original)
                             .translatedText(translated)
                             .detectedLang(detCode)
                             .culturalFootnotes(footnotes)
                             .translations(translations.isEmpty() ? null : translations)
+                            .replyToId(msg.getReplyToId() != null ? msg.getReplyToId().toString() : null)
+                            .attachmentUrl(msg.getAttachmentUrl())
+                            .attachmentName(msg.getAttachmentName())
+                            .attachmentSize(msg.getAttachmentSize())
+                            .messageType(msg.getMessageType())
+                            .deliveryStatus("sent")
                             .status("draft")
+                            .createdAt(msg.getCreatedAt() != null ? msg.getCreatedAt().toEpochMilli() : System.currentTimeMillis())
                             .build();
 
                     redisPubSubService.publish(roomIdStr, footnotesDraft);
@@ -335,10 +461,19 @@ public class ChatService {
                             .type("draft_ready")
                             .id(fallbackMsg.getId().toString())
                             .senderEmail(fallbackMsg.getSender().getEmail())
+                            .senderUsername(fallbackMsg.getSender().getUsername() != null ? fallbackMsg.getSender().getUsername() : fallbackMsg.getSender().getEmail().split("@")[0])
+                            .senderAvatarUrl(fallbackMsg.getSender().getAvatarUrl())
                             .originalText(fallbackMsg.getOriginalText())
                             .text(fallbackMsg.getOriginalText())
                             .translatedText(fallbackMsg.getOriginalText())
+                            .replyToId(fallbackMsg.getReplyToId() != null ? fallbackMsg.getReplyToId().toString() : null)
+                            .attachmentUrl(fallbackMsg.getAttachmentUrl())
+                            .attachmentName(fallbackMsg.getAttachmentName())
+                            .attachmentSize(fallbackMsg.getAttachmentSize())
+                            .messageType(fallbackMsg.getMessageType())
+                            .deliveryStatus("sent")
                             .status("draft")
+                            .createdAt(fallbackMsg.getCreatedAt() != null ? fallbackMsg.getCreatedAt().toEpochMilli() : System.currentTimeMillis())
                             .build();
                     redisPubSubService.publish(fallbackMsg.getRoom().getId().toString(), fallbackDraft);
                 }
@@ -365,6 +500,7 @@ public class ChatService {
             msg.setTranslatedText(editedText);
         }
         msg.setStatus("final");
+        msg.setDeliveryStatus("delivered");
         messageRepository.saveAndFlush(msg);
 
         Object parsedFootnotes = null;
@@ -387,15 +523,24 @@ public class ChatService {
                 .type("message_finalized")
                 .id(msg.getId().toString())
                 .senderEmail(sender.getEmail())
+                .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
+                .senderAvatarUrl(sender.getAvatarUrl())
                 .originalText(msg.getOriginalText())
                 .text(msg.getOriginalText())
                 .translatedText(msg.getTranslatedText())
                 .detectedLang(msg.getDetectedLang())
                 .culturalFootnotes(parsedFootnotes)
                 .translations(parsedTranslations)
+                .replyToId(msg.getReplyToId() != null ? msg.getReplyToId().toString() : null)
+                .attachmentUrl(msg.getAttachmentUrl())
+                .attachmentName(msg.getAttachmentName())
+                .attachmentSize(msg.getAttachmentSize())
+                .messageType(msg.getMessageType())
+                .deliveryStatus("delivered")
                 .status("final")
                 .ttsUrl(msg.getTtsUrl())
                 .audioUrl(msg.getAudioUrl())
+                .createdAt(msg.getCreatedAt() != null ? msg.getCreatedAt().toEpochMilli() : System.currentTimeMillis())
                 .build();
 
         redisPubSubService.publish(roomIdStr, finalizedMsg);

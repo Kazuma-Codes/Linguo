@@ -72,4 +72,4 @@ app:
     model: ${GROQ_MODEL:openai/gpt-oss-20b}
     backup-model: ${GROQ_BACKUP_MODEL:openai/gpt-oss-120b}
   cors:
-    allowed-origins: ${ALLOWED_ORIGINS}
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:8081}
