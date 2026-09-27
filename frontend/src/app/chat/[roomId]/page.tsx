@@ -198,12 +198,14 @@ export default function ChatRoomPage() {
                 />
               </div>
 
-              {/* Typing indicator or active members */}
+              {/* Typing indicator or DM label / member count */}
               <p className="text-xs text-[var(--muted)] truncate">
                 {Object.keys(typingUsers).length > 0 ? (
                   <span className="text-[var(--primary)] font-semibold animate-pulse">
                     {Object.values(typingUsers)[0].username || Object.values(typingUsers)[0].email.split('@')[0]} is typing...
                   </span>
+                ) : roomDetail?.room_type === 'direct' ? (
+                  'Direct message'
                 ) : (
                   `${members.length} participant${members.length > 1 ? 's' : ''}`
                 )}
@@ -222,14 +224,16 @@ export default function ChatRoomPage() {
               <span className="font-bold text-[var(--primary)]">{currentLangName}</span>
             </div>
 
-            {/* Share Link Button */}
-            <button
-              onClick={handleShareLink}
-              className="p-2 rounded-full hover:bg-[var(--bg-subtle)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
-              title="Share Room Invite Link"
-            >
-              <Icons.share className="w-4 h-4" />
-            </button>
+            {/* Share Link Button — groups only */}
+            {roomDetail?.room_type !== 'direct' && (
+              <button
+                onClick={handleShareLink}
+                className="p-2 rounded-full hover:bg-[var(--bg-subtle)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+                title="Share Room Invite Link"
+              >
+                <Icons.share className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Room Info Details Button */}
             <button
@@ -335,6 +339,7 @@ export default function ChatRoomPage() {
         langNames={LANG_NAMES}
         onCopyCode={handleCopyCode}
         onShareLink={handleShareLink}
+        isDirect={roomDetail?.room_type === 'direct'}
         onLeaveRoom={() => router.push('/')}
       />
 

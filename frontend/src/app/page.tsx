@@ -982,6 +982,7 @@ export default function HomePage() {
           langNames={LANG_NAMES}
           onCopyCode={handleCopyCode}
           onShareLink={handleShareLink}
+          isDirect={activeRoomDetail?.room_type === 'direct'}
           onLeaveRoom={() => {
             setShowInfoDrawer(false);
             setActiveRoomId(null);

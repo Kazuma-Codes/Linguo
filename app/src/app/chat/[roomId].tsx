@@ -26,6 +26,7 @@ export default function ChatRoom() {
     useChatStore();
   const [text, setText] = useState('');
   const [title, setTitle] = useState('Chat');
+  const [isDirect, setIsDirect] = useState(false);
   const [loading, setLoading] = useState(true);
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const C = Colors[scheme];
@@ -39,6 +40,7 @@ export default function ChatRoom() {
     Promise.all([getRoom(token, roomId as string).catch(() => null), getRoomMessages(token, roomId as string).catch(() => [])]).then(
       ([detail, history]) => {
         if (detail?.title) setTitle(detail.title);
+        if (detail?.room_type === 'direct') setIsDirect(true);
         setInitialMessages(history, user.email);
         setLoading(false);
       },
@@ -74,7 +76,10 @@ export default function ChatRoom() {
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title} numberOfLines={1}>
-        {title} — {LANGUAGE_MAP[myLang] || myLang} {isConnected ? '●' : '○'}
+        {title} {isConnected ? '●' : '○'}
+      </Text>
+      <Text style={styles.subtitle} numberOfLines={1}>
+        {isDirect ? 'Direct message' : `${LANGUAGE_MAP[myLang] || myLang} · auto-translated`}
       </Text>
       {!!typingUser && <Text style={styles.typing}>{typingUser} is typing…</Text>}
       <FlatList
