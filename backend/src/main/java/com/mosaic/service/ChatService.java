@@ -65,13 +65,23 @@ public class ChatService {
     @Transactional
     public void handleSendDraft(String roomIdStr, WsIncomingMessage incoming, User sender) {
         String text = incoming.getText();
-        if (text == null || text.isBlank()) {
+        boolean hasAttachment = incoming.getAttachmentUrl() != null && !incoming.getAttachmentUrl().isBlank();
+        if ((text == null || text.isBlank()) && !hasAttachment) {
             return;
         }
+        String safeText = text != null ? text : "";
 
         UUID roomId = UUID.fromString(roomIdStr);
         ChatRoom room = roomRepository.findById(roomId).orElse(null);
         if (room == null) {
+            return;
+        }
+
+        // No translation needed: attachment-only messages and emoji-only texts
+        // (no letters in any script) are language-neutral — finalize instantly
+        // without spending Groq inference or writing cache entries.
+        if (!containsTranslatableText(safeText)) {
+            finalizeUntranslated(roomIdStr, room, incoming, safeText, sender);
             return;
         }
 
