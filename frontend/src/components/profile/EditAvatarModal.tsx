@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Icons } from '@/lib/icons';
 import { MergedAvatar } from '@/components/common/MergedAvatar';
-import { AvatarCropper } from '@/components/common/AvatarCropper';
+import { AvatarCropperPopup } from '@/components/common/AvatarCropper';
 import { AVATAR_PRESETS } from '@/lib/avatarPresets';
 
 interface EditAvatarModalProps {
@@ -24,8 +24,30 @@ export function EditAvatarModal({
   const [activeTab, setActiveTab] = useState<'upload' | 'presets' | 'url'>('upload');
   const [selectedAvatar, setSelectedAvatar] = useState<string>(currentAvatarUrl);
   const [urlInput, setUrlInput] = useState<string>(currentAvatarUrl.startsWith('http') ? currentAvatarUrl : '');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pendingSrc, setPendingSrc] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen) return null;
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please upload an image file (JPG, PNG, WebP)');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    if (pendingSrc) URL.revokeObjectURL(pendingSrc);
+    setPendingSrc(URL.createObjectURL(file));
+  };
+
+  const closeCropper = () => {
+    if (pendingSrc) URL.revokeObjectURL(pendingSrc);
+    setPendingSrc(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleApplyUrl = () => {
     if (!urlInput.trim()) return;
@@ -130,9 +152,41 @@ export function EditAvatarModal({
           </button>
         </div>
 
-        {/* Tab 1: Upload + crop (shared component, also used for group avatars) */}
+        {/* Tab 1: Upload → fixed crop popup (also used for group avatars) */}
         {activeTab === 'upload' && (
-          <AvatarCropper onApply={(dataUrl) => setSelectedAvatar(dataUrl)} />
+          <div className="space-y-3">
+            <label className="border-2 border-dashed border-[var(--border)] hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer hover:bg-[var(--bg-subtle)] transition-all flex flex-col items-center space-y-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/*"
+                className="sr-only"
+              />
+              <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center pointer-events-none">
+                <Icons.upload className="w-6 h-6" />
+              </div>
+              <div className="pointer-events-none">
+                <p className="text-xs font-bold text-[var(--text)]">Tap to upload a picture</p>
+                <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                  PNG, JPG, or WebP. You&apos;ll crop it next.
+                </p>
+              </div>
+            </label>
+            {uploadError && (
+              <p className="text-xs text-red-500 font-medium text-center">{uploadError}</p>
+            )}
+          </div>
+        )}
+
+        {/* Fixed crop popup — tick applies, X cancels */}
+        {pendingSrc && (
+          <AvatarCropperPopup
+            src={pendingSrc}
+            onApply={(dataUrl) => setSelectedAvatar(dataUrl)}
+            onClose={closeCropper}
+            onPickDifferent={() => fileInputRef.current?.click()}
+          />
         )}
 
         {/* Tab 2: Curated Presets */}

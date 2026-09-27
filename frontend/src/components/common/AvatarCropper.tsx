@@ -3,95 +3,68 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Icons } from '@/lib/icons';
 
-interface AvatarCropperProps {
-  /** Called with the 256px JPEG data URL once the user applies the crop. */
+interface AvatarCropperPopupProps {
+  /** Object URL of the picked image. */
+  src: string;
+  /** Called with the 256px JPEG data URL when the user hits the tick. */
   onApply: (dataUrl: string) => void;
+  /** Close without applying. */
+  onClose: () => void;
+  /** Pick a different photo (re-opens the file picker). */
+  onPickDifferent: () => void;
 }
 
+const STAGE = 288; // fixed popup stage (px) — big images can never blow up the layout
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 4;
+
 /**
- * Shared upload → drag/resize/zoom crop → 256px JPEG picker.
- * Used by the profile avatar modal and the group settings editor.
+ * WhatsApp-style fixed crop popup: fixed-size window, fixed circular viewport
+ * (adjustable diameter), drag-the-image to position, +/- zoom rail, tick to
+ * confirm. Exports a 256px JPEG data URL.
  */
-export function AvatarCropper({ onApply }: AvatarCropperProps) {
-  const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const [cropBox, setCropBox] = useState({ x: 0, y: 0, size: 120 });
+export function AvatarCropperPopup({ src, onApply, onClose, onPickDifferent }: AvatarCropperPopupProps) {
+  // Image offset (top-left of displayed image relative to stage) + zoom
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  // Circle diameter as a fraction of the stage (user-adjustable crop size)
+  const [diameterRatio, setDiameterRatio] = useState(0.85);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const cropImgRef = useRef<HTMLImageElement | null>(null);
-  const naturalRef = useRef({ w: 0, h: 0 });
-  const dragRef = useRef<null | {
-    mode: 'move' | 'resize';
-    startX: number;
-    startY: number;
-    box: { x: number; y: number; size: number };
-  }>(null);
-  const previewRef = useRef<HTMLCanvasElement | null>(null);
+  const [base, setBase] = useState({ w: STAGE, h: STAGE, cover: 1 });
 
-  const clearCrop = () => {
-    if (cropSrc) URL.revokeObjectURL(cropSrc);
-    setCropSrc(null);
-    setZoom(1);
-    setError(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const dragRef = useRef<null | { startX: number; startY: number; ox: number; oy: number }>(null);
 
-  // Revoke object URL on unmount
-  useEffect(() => {
-    return () => {
-      if (cropSrc) URL.revokeObjectURL(cropSrc);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const diameter = Math.round(STAGE * diameterRatio);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setError(null);
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file (JPG, PNG, WebP)');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-    if (cropSrc) URL.revokeObjectURL(cropSrc);
-    setCropSrc(URL.createObjectURL(file));
+  // Fit the image so it covers the stage, then center it
+  const initImage = () => {
+    const img = imgRef.current;
+    if (!img || !img.naturalWidth) return;
+    const cover = STAGE / Math.min(img.naturalWidth, img.naturalHeight);
+    const w = img.naturalWidth * cover;
+    const h = img.naturalHeight * cover;
+    setBase({ w, h, cover });
+    setOffset({ x: (STAGE - w) / 2, y: (STAGE - h) / 2 });
     setZoom(1);
   };
 
-  const initCropBox = () => {
-    const el = containerRef.current;
-    const img = cropImgRef.current;
-    if (!el || !img || !img.naturalWidth) return;
-    naturalRef.current = { w: img.naturalWidth, h: img.naturalHeight };
-    const rect = el.getBoundingClientRect();
-    const size = Math.max(60, Math.min(rect.width, rect.height) * 0.8);
-    setCropBox({ x: (rect.width - size) / 2, y: (rect.height - size) / 2, size });
-  };
+  const dispW = base.w * zoom;
+  const dispH = base.h * zoom;
 
-  // Global pointer tracking for drag-move / drag-resize (works for touch too)
+  // Clamp so the image always covers the whole stage
+  const clampOffset = (x: number, y: number) => ({
+    x: Math.min(0, Math.max(STAGE - dispW, x)),
+    y: Math.min(0, Math.max(STAGE - dispH, y)),
+  });
+
+  // Global pointer tracking (touch + mouse)
   useEffect(() => {
     const onMove = (ev: PointerEvent) => {
       const drag = dragRef.current;
-      const el = containerRef.current;
-      if (!drag || !el) return;
-      const rect = el.getBoundingClientRect();
-      const dx = ev.clientX - drag.startX;
-      const dy = ev.clientY - drag.startY;
-      if (drag.mode === 'move') {
-        const maxX = Math.max(0, rect.width - drag.box.size);
-        const maxY = Math.max(0, rect.height - drag.box.size);
-        setCropBox({
-          ...drag.box,
-          x: Math.min(maxX, Math.max(0, drag.box.x + dx)),
-          y: Math.min(maxY, Math.max(0, drag.box.y + dy)),
-        });
-      } else {
-        const maxSize = Math.min(rect.width - drag.box.x, rect.height - drag.box.y, 400);
-        const size = Math.min(Math.max(48, drag.box.size + Math.max(dx, dy)), Math.max(48, maxSize));
-        setCropBox({ ...drag.box, size });
-      }
+      if (!drag) return;
+      setOffset(clampOffset(drag.ox + (ev.clientX - drag.startX), drag.oy + (ev.clientY - drag.startY)));
     };
     const onUp = () => {
       dragRef.current = null;
@@ -104,64 +77,48 @@ export function AvatarCropper({ onApply }: AvatarCropperProps) {
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispW, dispH]);
 
-  /** Maps the crop box (container px) back to natural image px and exports 256px JPEG. */
-  const renderCrop = (outSize = 256): string | null => {
-    const el = containerRef.current;
-    const img = cropImgRef.current;
-    const nat = naturalRef.current;
-    if (!el || !img || !nat.w) return null;
-    const rect = el.getBoundingClientRect();
-    const dispW = rect.width;
-    const dispH = rect.width * (nat.h / nat.w);
-    const toDispX = (px: number) => (px - rect.width / 2) / zoom + dispW / 2;
-    const toDispY = (py: number) => (py - rect.height / 2) / zoom + dispH / 2;
-    const kx = nat.w / dispW;
-    const ky = nat.h / dispH;
-    let sx = toDispX(cropBox.x) * kx;
-    let sy = toDispY(cropBox.y) * ky;
-    let side = (cropBox.size / zoom) * ((kx + ky) / 2);
-    sx = Math.min(Math.max(0, sx), nat.w - 1);
-    sy = Math.min(Math.max(0, sy), nat.h - 1);
-    side = Math.min(side, nat.w - sx, nat.h - sy);
-    if (side < 4) return null;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = outSize;
-    canvas.height = outSize;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.drawImage(img, sx, sy, side, side, 0, 0, outSize, outSize);
-    return canvas.toDataURL('image/jpeg', 0.85);
+  // Keep the image covering the stage when zooming
+  const changeZoom = (next: number) => {
+    const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
+    // Zoom around the stage center so the subject stays put
+    const cx = STAGE / 2;
+    const cy = STAGE / 2;
+    const scale = z / zoom;
+    const nx = cx - (cx - offset.x) * scale;
+    const ny = cy - (cy - offset.y) * scale;
+    setZoom(z);
+    const w = base.w * z;
+    const h = base.h * z;
+    setOffset({
+      x: Math.min(0, Math.max(STAGE - w, nx)),
+      y: Math.min(0, Math.max(STAGE - h, ny)),
+    });
   };
 
-  // Live circle preview of the current crop
-  useEffect(() => {
-    const preview = previewRef.current;
-    const img = cropImgRef.current;
-    const nat = naturalRef.current;
-    if (!preview || !img || !nat.w || !cropSrc) return;
-    const dataUrl = renderCrop(192);
-    if (!dataUrl) return;
-    const pctx = preview.getContext('2d');
-    const pimg = new Image();
-    pimg.onload = () => {
-      pctx?.clearRect(0, 0, preview.width, preview.height);
-      pctx?.drawImage(pimg, 0, 0, preview.width, preview.height);
-    };
-    pimg.src = dataUrl;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cropBox, zoom, cropSrc]);
-
-  const handleApplyCrop = () => {
+  const handleApply = () => {
+    const img = imgRef.current;
+    if (!img || !img.naturalWidth) return;
     setApplying(true);
     setError(null);
     try {
-      const dataUrl = renderCrop(256);
-      if (!dataUrl) throw new Error('Crop area is empty — drag the box over the photo');
-      onApply(dataUrl);
-      clearCrop();
+      const k = img.naturalWidth / dispW; // natural px per displayed px
+      const r = diameter / 2;
+      const sx = (STAGE / 2 - r - offset.x) * k;
+      const sy = (STAGE / 2 - r - offset.y) * k;
+      const side = diameter * k;
+      if (side < 4) throw new Error('Crop area is empty');
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Could not process image');
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, 256, 256);
+      onApply(canvas.toDataURL('image/jpeg', 0.85));
+      onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to crop image');
     } finally {
@@ -169,130 +126,120 @@ export function AvatarCropper({ onApply }: AvatarCropperProps) {
     }
   };
 
-  if (!cropSrc) {
-    return (
-      <div className="space-y-3">
-        <label className="border-2 border-dashed border-[var(--border)] hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer hover:bg-[var(--bg-subtle)] transition-all flex flex-col items-center space-y-2">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept="image/*"
-            className="sr-only"
-          />
-          <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center pointer-events-none">
-            <Icons.upload className="w-6 h-6" />
-          </div>
-          <div className="pointer-events-none">
-            <p className="text-xs font-bold text-[var(--text)]">Tap to upload a picture</p>
-            <p className="text-[11px] text-[var(--muted)] mt-0.5">
-              PNG, JPG, or WebP. You&apos;ll crop it next.
-            </p>
-          </div>
-        </label>
-        {error && <p className="text-xs text-red-500 font-medium text-center">{error}</p>}
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-3">
-      <p className="text-xs font-bold text-[var(--text)] text-center">
-        Drag the square to position • drag the corner to resize
-      </p>
-      <div ref={containerRef} className="relative w-full overflow-hidden rounded-2xl bg-black/80 select-none">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          ref={cropImgRef}
-          src={cropSrc}
-          alt="Crop source"
-          onLoad={initCropBox}
-          draggable={false}
-          className="w-full h-auto pointer-events-none"
-          style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
-        />
-        <div
-          className="absolute touch-none cursor-move"
-          style={{
-            left: cropBox.x,
-            top: cropBox.y,
-            width: cropBox.size,
-            height: cropBox.size,
-            boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)',
-            border: '2px solid #fff',
-            borderRadius: 8,
-          }}
-          onPointerDown={(e) => {
-            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-            dragRef.current = {
-              mode: 'move',
-              startX: e.clientX,
-              startY: e.clientY,
-              box: { ...cropBox },
-            };
-          }}
-        >
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-0 bottom-0 left-1/3 w-px bg-white/50" />
-            <div className="absolute top-0 bottom-0 left-2/3 w-px bg-white/50" />
-            <div className="absolute left-0 right-0 top-1/3 h-px bg-white/50" />
-            <div className="absolute left-0 right-0 top-2/3 h-px bg-white/50" />
-          </div>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Header: X | title | pick different */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] flex-none">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+            title="Cancel"
+          >
+            <Icons.x className="w-5 h-5" />
+          </button>
+          <span className="text-sm font-bold text-[var(--text)]">Drag the image to adjust</span>
+          <button
+            type="button"
+            onClick={onPickDifferent}
+            className="flex items-center gap-1 text-xs font-bold text-[var(--primary)] hover:opacity-80 transition-opacity cursor-pointer"
+            title="Choose a different photo"
+          >
+            <Icons.upload className="w-4 h-4" />
+            <span className="hidden sm:inline">Upload</span>
+          </button>
+        </div>
+
+        {/* Fixed-size stage with circular viewport */}
+        <div className="p-4 flex-none">
           <div
-            className="absolute -bottom-2 -right-2 w-6 h-6 rounded-md bg-white shadow-md cursor-nwse-resize touch-none flex items-center justify-center"
+            className="relative mx-auto overflow-hidden rounded-2xl bg-black select-none touch-none cursor-move"
+            style={{ width: STAGE, maxWidth: '100%', height: STAGE }}
             onPointerDown={(e) => {
-              e.stopPropagation();
               (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-              dragRef.current = {
-                mode: 'resize',
-                startX: e.clientX,
-                startY: e.clientY,
-                box: { ...cropBox },
-              };
+              dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y };
             }}
           >
-            <Icons.chevR className="w-4 h-4 text-slate-600 rotate-45" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={imgRef}
+              src={src}
+              alt="Crop source"
+              onLoad={initImage}
+              draggable={false}
+              className="absolute pointer-events-none"
+              style={{ left: offset.x, top: offset.y, width: dispW, height: dispH, maxWidth: 'none' }}
+            />
+            {/* Dimmed mask with circular hole = the avatar preview */}
+            <div
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                left: (STAGE - diameter) / 2,
+                top: (STAGE - diameter) / 2,
+                width: diameter,
+                height: diameter,
+                boxShadow: '0 0 0 9999px rgba(0,0,0,0.65)',
+                border: '2px solid rgba(255,255,255,0.9)',
+              }}
+            />
+            {/* Zoom rail */}
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col rounded-full bg-black/60 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => changeZoom(zoom + 0.25)}
+                className="p-2 text-white hover:bg-white/20 transition-colors cursor-pointer"
+                title="Zoom in"
+              >
+                <Icons.plus className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => changeZoom(zoom - 0.25)}
+                className="p-2 text-white hover:bg-white/20 transition-colors cursor-pointer"
+                title="Zoom out"
+              >
+                <span className="block w-4 h-4 text-center leading-4 font-bold">−</span>
+              </button>
+            </div>
           </div>
+
+          {/* Circle size */}
+          <div className="flex items-center gap-3 mt-3">
+            <span className="text-[11px] font-bold text-[var(--muted)] flex-none">Crop size</span>
+            <input
+              type="range"
+              min={0.4}
+              max={1}
+              step={0.01}
+              value={diameterRatio}
+              onChange={(e) => setDiameterRatio(Number(e.target.value))}
+              className="flex-1 accent-blue-600 cursor-pointer"
+            />
+          </div>
+          {error && <p className="text-xs text-red-500 font-medium text-center mt-2">{error}</p>}
+        </div>
+
+        {/* Footer: cancel + tick */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)] flex-none">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={applying}
+            className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white shadow-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+            title="Apply crop"
+          >
+            <Icons.check className="w-6 h-6" />
+          </button>
         </div>
       </div>
-
-      <div className="flex items-center gap-3">
-        <span className="text-[11px] font-bold text-[var(--muted)] flex-none">Zoom</span>
-        <input
-          type="range"
-          min={1}
-          max={3}
-          step={0.05}
-          value={zoom}
-          onChange={(e) => setZoom(Number(e.target.value))}
-          className="flex-1 accent-blue-600 cursor-pointer"
-        />
-        <canvas
-          ref={previewRef}
-          width={56}
-          height={56}
-          className="w-14 h-14 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] flex-none"
-        />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={clearCrop}
-          className="flex-1 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
-        >
-          Choose different photo
-        </button>
-        <button
-          type="button"
-          onClick={handleApplyCrop}
-          disabled={applying}
-          className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition-colors cursor-pointer"
-        >
-          {applying ? 'Applying…' : 'Apply crop'}
-        </button>
-      </div>
-      {error && <p className="text-xs text-red-500 font-medium text-center">{error}</p>}
     </div>
   );
 }
