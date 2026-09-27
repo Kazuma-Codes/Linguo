@@ -26,6 +26,8 @@ interface GroupsTabProps {
   onEnterRoom: (roomId: string) => void;
   onJoinRoom: (roomId: string) => void;
   onCreateGroupModal: () => void;
+  /** Join by pasted invite link or raw room code. */
+  onJoinByCode: (input: string) => void;
 }
 
 export function GroupsTab({
@@ -36,8 +38,10 @@ export function GroupsTab({
   onEnterRoom,
   onJoinRoom,
   onCreateGroupModal,
+  onJoinByCode,
 }: GroupsTabProps) {
   const [subTab, setSubTab] = useState<'joined' | 'discover'>('joined');
+  const [inviteInput, setInviteInput] = useState('');
 
   const filteredMyRooms = myRooms.filter(
     (r) =>

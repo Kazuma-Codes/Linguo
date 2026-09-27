@@ -45,6 +45,13 @@ import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
 import { UserDetailPopup } from '@/components/profile/UserDetailPopup';
 import { AVATAR_PRESETS } from '@/lib/avatarPresets';
 
+/** Accepts a raw room UUID or a full invite URL and returns the UUID, or null. */
+function extractRoomId(input: string): string | null {
+  if (!input) return null;
+  const m = input.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  return m ? m[0] : null;
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { token, user, setAuth, updatePreferredLanguage: setStoreLang, updateUserProfile, logout, hasHydrated } = useAuthStore();
@@ -202,6 +209,34 @@ export default function HomePage() {
     if (user?.preferred_language) setMySeatLang(user.preferred_language);
   }, [user?.preferred_language]);
 
+  // Honor invite links: /?redirect=/chat/<id-or-full-url> → join + open the room.
+  // Runs once per login (and on first load when already authenticated).
+  useEffect(() => {
+    if (!hasHydrated || !token || !user) return;
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get('redirect');
+    if (!target) return;
+    const roomId = extractRoomId(target);
+    if (!roomId) return;
+    router.replace('/');
+    (async () => {
+      try {
+        await joinRoom(token, roomId);
+      } catch (err: any) {
+        // Already a member (409) or auto-joinable — still open it.
+        if (!/already|conflict/i.test(err.message || '')) {
+          showToast(err.message || 'Could not join via invite link');
+          return;
+        }
+      }
+      await loadAllData();
+      setActiveRoomId(roomId);
+      setActiveTab('chats');
+      showToast('🔗 Joined via invite link');
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasHydrated, token]);
+
   // Auth Handling
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -283,6 +318,30 @@ export default function HomePage() {
       setActiveTab('chats');
     } catch (err: any) {
       showToast(err.message || 'Failed to join group');
+    }
+  };
+
+  /** Join by pasted invite link or raw room code (Groups tab join box). */
+  const handleJoinByCode = async (input: string) => {
+    if (!token) return;
+    const roomId = extractRoomId(input);
+    if (!roomId) {
+      showToast('That doesn’t look like an invite link or room code');
+      return;
+    }
+    try {
+      await joinRoom(token, roomId);
+      await loadAllData();
+      showToast('🔗 Joined group');
+      setActiveRoomId(roomId);
+      setActiveTab('chats');
+    } catch (err: any) {
+      if (/already|conflict/i.test(err.message || '')) {
+        setActiveRoomId(roomId);
+        setActiveTab('chats');
+      } else {
+        showToast(err.message || 'Failed to join group');
+      }
     }
   };
 
