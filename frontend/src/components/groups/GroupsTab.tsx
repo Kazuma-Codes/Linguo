@@ -101,6 +101,34 @@ export function GroupsTab({
             className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
           />
         </div>
+
+        {/* Join by invite link or room code */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={inviteInput}
+            onChange={(e) => setInviteInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && inviteInput.trim()) {
+                onJoinByCode(inviteInput.trim());
+                setInviteInput('');
+              }
+            }}
+            placeholder="Paste invite link or room code…"
+            className="flex-1 min-w-0 bg-[var(--bg-subtle)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs sm:text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
+          />
+          <button
+            onClick={() => {
+              if (inviteInput.trim()) {
+                onJoinByCode(inviteInput.trim());
+                setInviteInput('');
+              }
+            }}
+            className="px-3.5 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer flex-none"
+          >
+            Join
+          </button>
+        </div>
       </div>
 
       {/* Main List */}
