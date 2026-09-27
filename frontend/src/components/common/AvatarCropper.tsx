@@ -10,8 +10,8 @@ interface AvatarCropperPopupProps {
   onApply: (dataUrl: string) => void;
   /** Close without applying. */
   onClose: () => void;
-  /** Pick a different photo (re-opens the file picker). */
-  onPickDifferent: () => void;
+  /** User picked a different file from inside the popup. */
+  onPickDifferentFile: (file: File) => void;
 }
 
 const STAGE = 288; // fixed popup stage (px) — big images can never blow up the layout
@@ -23,7 +23,7 @@ const MAX_ZOOM = 4;
  * (adjustable diameter), drag-the-image to position, +/- zoom rail, tick to
  * confirm. Exports a 256px JPEG data URL.
  */
-export function AvatarCropperPopup({ src, onApply, onClose, onPickDifferent }: AvatarCropperPopupProps) {
+export function AvatarCropperPopup({ src, onApply, onClose, onPickDifferentFile }: AvatarCropperPopupProps) {
   // Image offset (top-left of displayed image relative to stage) + zoom
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -34,6 +34,7 @@ export function AvatarCropperPopup({ src, onApply, onClose, onPickDifferent }: A
   const [base, setBase] = useState({ w: STAGE, h: STAGE, cover: 1 });
 
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const pickFileRef = useRef<HTMLInputElement | null>(null);
   const dragRef = useRef<null | { startX: number; startY: number; ox: number; oy: number }>(null);
 
   const diameter = Math.round(STAGE * diameterRatio);
