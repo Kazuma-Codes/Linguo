@@ -364,6 +364,9 @@ public class RoomService {
         if (request.getEmoji() != null && !request.getEmoji().isBlank()) {
             room.setEmoji(request.getEmoji().trim());
         }
+        if (request.getAvatarUrl() != null) {
+            room.setAvatarUrl(request.getAvatarUrl().trim());
+        }
         roomRepository.save(room);
 
         return getRoom(roomId, currentUser);
