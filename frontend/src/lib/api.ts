@@ -131,7 +131,7 @@ export async function createRoom(
   title: string,
   source_lang?: string,
   target_lang?: string,
-  extra?: { description?: string; emoji?: string; avatar_url?: string; is_private?: boolean }
+  extra?: { description?: string; avatar_url?: string; is_private?: boolean }
 ) {
   return apiFetch('/rooms', {
     method: 'POST',
@@ -145,7 +145,6 @@ export async function createRoom(
       target_lang: target_lang || 'es',
       room_type: 'group',
       description: extra?.description,
-      emoji: extra?.emoji || '💬',
       avatar_url: extra?.avatar_url,
       is_private: extra?.is_private || false,
     }),
@@ -189,11 +188,11 @@ export async function getRoom(token: string, roomId: string) {
   });
 }
 
-/** Update group settings (creator only): title, description, emoji, avatar. */
+/** Update group settings (creator only): title, description, avatar. */
 export async function updateRoom(
   token: string,
   roomId: string,
-  data: { title?: string; description?: string; emoji?: string; avatarUrl?: string }
+  data: { title?: string; description?: string; avatarUrl?: string }
 ) {
   return apiFetch(`/rooms/${roomId}`, {
     method: 'PATCH',

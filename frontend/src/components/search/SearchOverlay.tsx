@@ -9,7 +9,6 @@ interface SearchItem {
   title: string;
   subtitle?: string;
   avatarUrl?: string;
-  emoji?: string;
   type: 'room' | 'contact';
 }
 
@@ -98,7 +97,6 @@ export function SearchOverlay({
                   <MergedAvatar
                     name={item.title}
                     avatarUrl={item.avatarUrl}
-                    emoji={item.emoji}
                     size="md"
                   />
                   <div className="min-w-0">

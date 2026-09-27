@@ -51,11 +51,11 @@ function avatarColor(name: string) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
-function RoomAvatar({ title, emoji, size = 44 }: { title: string; emoji?: string; size?: number }) {
+function RoomAvatar({ title, size = 44 }: { title: string; size?: number }) {
   const bg = avatarColor(title);
   return (
     <View style={[styles.avatar, { backgroundColor: bg, width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={[styles.avatarText, { fontSize: size * 0.42 }]}>{emoji || title.charAt(0).toUpperCase()}</Text>
+      <Text style={[styles.avatarText, { fontSize: size * 0.42 }]}>{title.charAt(0).toUpperCase()}</Text>
     </View>
   );
 }
@@ -409,7 +409,7 @@ async function handleChangePhoto() {
               showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <Pressable style={s.row} onPress={() => router.push(`/chat/${item.id}` as any)}>
-                  <RoomAvatar title={item.title || '?'} emoji={item.emoji} />
+                  <RoomAvatar title={item.title || '?'} />
                   <View style={s.rowText}>
                     <View style={s.rowTitleRow}>
                       <Text style={s.rowTitle} numberOfLines={1}>
@@ -542,7 +542,7 @@ async function handleChangePhoto() {
               keyExtractor={(r) => r.id}
               renderItem={({ item }) => (
                 <View style={s.row}>
-                  <RoomAvatar title={item.title || '?'} emoji={item.emoji} />
+                  <RoomAvatar title={item.title || '?'} />
                   <View style={s.rowText}>
                     <Text style={s.rowTitle}>{item.title}</Text>
                     <Text style={s.rowSub} numberOfLines={1}>

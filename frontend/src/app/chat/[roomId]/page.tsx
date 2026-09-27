@@ -142,7 +142,7 @@ export default function ChatRoomPage() {
     }
   };
 
-  const handleSaveGroupSettings = async (data: { title: string; description: string; emoji: string; avatarUrl: string }) => {
+  const handleSaveGroupSettings = async (data: { title: string; description: string; avatarUrl: string }) => {
     if (!token) return;
     const updated = await updateRoom(token, roomId, data);
     setRoomDetail(updated);
@@ -215,7 +215,6 @@ export default function ChatRoomPage() {
               <MergedAvatar
                 name={roomTitle}
                 avatarUrl={roomDetail?.avatar_url}
-                emoji={roomDetail?.emoji || '💬'}
                 size="md"
               />
             </span>
@@ -366,7 +365,6 @@ export default function ChatRoomPage() {
         roomId={roomId}
         title={roomTitle}
         description={roomDetail?.description}
-        emoji={roomDetail?.emoji}
         avatarUrl={roomDetail?.avatar_url}
         members={members}
         distinctLangs={distinctLangs}

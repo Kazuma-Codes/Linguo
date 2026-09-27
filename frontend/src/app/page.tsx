@@ -485,7 +485,6 @@ export default function HomePage() {
       title: r.title,
       subtitle: r.room_type === 'direct' ? 'Direct Message' : 'Group Room',
       avatarUrl: r.avatar_url,
-      emoji: r.emoji,
       type: 'room' as const,
     })),
     ...contacts.map((c) => ({
@@ -748,7 +747,6 @@ export default function HomePage() {
                           <MergedAvatar
                             name={room.title}
                             avatarUrl={room.avatar_url}
-                            emoji={room.emoji || '💬'}
                             size="md"
                           />
                           <div className="min-w-0">
@@ -857,7 +855,6 @@ export default function HomePage() {
                   <MergedAvatar
                     name={activeRoomDetail?.title || 'Chat'}
                     avatarUrl={activeRoomDetail?.avatar_url}
-                    emoji={activeRoomDetail?.emoji || '💬'}
                     size="md"
                   />
                 </span>
@@ -1059,7 +1056,6 @@ export default function HomePage() {
           roomId={activeRoomId}
           title={activeRoomDetail?.title || 'Chat Room'}
           description={activeRoomDetail?.description}
-          emoji={activeRoomDetail?.emoji}
           avatarUrl={activeRoomDetail?.avatar_url}
           members={roomMembers}
           distinctLangs={activeRoomDetail?.distinct_langs || []}

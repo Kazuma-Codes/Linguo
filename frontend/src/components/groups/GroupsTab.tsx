@@ -11,7 +11,6 @@ export interface RoomItem {
   target_lang?: string;
   room_type?: string;
   description?: string;
-  emoji?: string;
   avatar_url?: string;
   members_count?: number;
   last_message?: string;
@@ -165,7 +164,6 @@ export function GroupsTab({
                   <MergedAvatar
                     name={room.title}
                     avatarUrl={room.avatar_url}
-                    emoji={room.emoji || '💬'}
                     size="md"
                   />
                   <div className="min-w-0">
@@ -211,7 +209,6 @@ export function GroupsTab({
                 <MergedAvatar
                   name={room.title}
                   avatarUrl={room.avatar_url}
-                  emoji={room.emoji || '💬'}
                   size="md"
                 />
                 <div className="min-w-0">
