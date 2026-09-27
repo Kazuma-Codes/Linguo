@@ -5,7 +5,6 @@ import React from 'react';
 interface MergedAvatarProps {
   name?: string;
   avatarUrl?: string;
-  emoji?: string;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   shape?: 'circle' | 'rounded';
   online?: boolean;
@@ -51,7 +50,6 @@ function getGradient(name: string = '') {
 export function MergedAvatar({
   name = '',
   avatarUrl,
-  emoji,
   size = 'md',
   shape = 'rounded',
   online,
@@ -85,8 +83,6 @@ export function MergedAvatar({
               (e.target as HTMLElement).style.display = 'none';
             }}
           />
-        ) : emoji ? (
-          <span className="leading-none">{emoji}</span>
         ) : (
           <span>{initials}</span>
         )}
