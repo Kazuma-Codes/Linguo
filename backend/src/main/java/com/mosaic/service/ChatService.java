@@ -149,6 +149,69 @@ public class ChatService {
         handleSendDraft(roomIdStr, inc, sender);
     }
 
+    /**
+     * True when the text contains at least one letter (any script).
+     * Emoji / symbols / numbers / blank text need no translation.
+     */
+    private boolean containsTranslatableText(String text) {
+        if (text == null || text.isBlank()) return false;
+        return text.codePoints().anyMatch(Character::isLetter);
+    }
+
+    /**
+     * Instant-finalize path for language-neutral content (files, photos,
+     * emoji-only reactions): no Groq call, no cache write, no footnotes.
+     * Recipients see the original as-is.
+     */
+    @Transactional
+    public void finalizeUntranslated(String roomIdStr, ChatRoom room, WsIncomingMessage incoming,
+                                     String text, User sender) {
+        UUID replyTo = null;
+        if (incoming.getReplyToId() != null && !incoming.getReplyToId().isBlank()) {
+            try {
+                replyTo = UUID.fromString(incoming.getReplyToId());
+            } catch (Exception ignored) {}
+        }
+
+        Message msg = Message.builder()
+                .room(room)
+                .sender(sender)
+                .originalText(text)
+                .translatedText(text)
+                .status("final")
+                .messageType(incoming.getMessageType() != null ? incoming.getMessageType() : "text")
+                .replyToId(replyTo)
+                .attachmentUrl(incoming.getAttachmentUrl())
+                .attachmentName(incoming.getAttachmentName())
+                .attachmentSize(incoming.getAttachmentSize())
+                .deliveryStatus("delivered")
+                .build();
+
+        msg = messageRepository.saveAndFlush(msg);
+
+        WsOutgoingMessage finalizedMsg = WsOutgoingMessage.builder()
+                .type("message_finalized")
+                .id(msg.getId().toString())
+                .senderEmail(sender.getEmail())
+                .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
+                .senderAvatarUrl(sender.getAvatarUrl())
+                .originalText(text)
+                .text(text)
+                .translatedText(text)
+                .replyToId(msg.getReplyToId() != null ? msg.getReplyToId().toString() : null)
+                .attachmentUrl(msg.getAttachmentUrl())
+                .attachmentName(msg.getAttachmentName())
+                .attachmentSize(msg.getAttachmentSize())
+                .messageType(msg.getMessageType())
+                .deliveryStatus("delivered")
+                .status("final")
+                .createdAt(msg.getCreatedAt() != null ? msg.getCreatedAt().toEpochMilli() : System.currentTimeMillis())
+                .build();
+
+        redisPubSubService.publish(roomIdStr, finalizedMsg);
+        log.info("Untranslated content finalized immediately (file/emoji): {}", msg.getId());
+    }
+
     @Transactional
     public void handleDirectSend(String roomIdStr, WsIncomingMessage incoming, User sender) {
         // Enforced Draft→Confirm path (chosen over quick-send bypass):

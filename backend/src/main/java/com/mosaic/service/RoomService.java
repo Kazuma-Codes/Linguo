@@ -342,8 +342,7 @@ public class RoomService {
     }
 
     @Transactional
-    public RoomDetailResponse setMyLanguage(UUID roomId, String newLanguage, User currentUser) {
-        ChatRoom room = roomRepository.findById(roomId)
+    public RoomDetailResponse setMyLanguage(UUID roomId, String newLanguage, User currentUser) {        ChatRoom room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
 
         String normNew = norm(newLanguage);
