@@ -188,6 +188,9 @@ export function RoomInfoDrawer({
                 >
                   {showAvatarPicker ? 'Hide picker' : 'Change photo'}
                 </button>
+                <p className="text-[10px] text-[var(--muted)] mt-1">
+                  Cropping only previews — press Save below to apply for everyone.
+                </p>
               </div>
             </div>
             {showAvatarPicker && (
