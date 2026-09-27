@@ -189,6 +189,22 @@ export async function getRoom(token: string, roomId: string) {
   });
 }
 
+/** Update group settings (creator only): title, description, emoji. */
+export async function updateRoom(
+  token: string,
+  roomId: string,
+  data: { title?: string; description?: string; emoji?: string }
+) {
+  return apiFetch(`/rooms/${roomId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+}
+
 /** Fetch historical messages for a room */
 export async function getRoomMessages(token: string, roomId: string) {
   return apiFetch(`/rooms/${roomId}/messages`, {

@@ -55,8 +55,46 @@ export function RoomInfoDrawer({
   onLeaveRoom,
   isDirect = false,
   onSelectMember,
+  isAdmin = false,
+  onSaveSettings,
 }: RoomInfoDrawerProps) {
+  const [editingSettings, setEditingSettings] = useState(false);
+  const [editTitle, setEditTitle] = useState(title);
+  const [editDescription, setEditDescription] = useState(description || '');
+  const [editEmoji, setEditEmoji] = useState(emoji || '💬');
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  // Refresh the form whenever a different room is opened
+  useEffect(() => {
+    setEditingSettings(false);
+    setEditTitle(title);
+    setEditDescription(description || '');
+    setEditEmoji(emoji || '💬');
+    setSettingsError(null);
+  }, [roomId, title, description, emoji]);
+
   if (!isOpen) return null;
+
+  const canEdit = isAdmin && !isDirect && !!onSaveSettings;
+
+  const handleSaveSettings = async () => {
+    if (!onSaveSettings || !editTitle.trim()) return;
+    setSavingSettings(true);
+    setSettingsError(null);
+    try {
+      await onSaveSettings({
+        title: editTitle.trim(),
+        description: editDescription.trim(),
+        emoji: editEmoji.trim() || '💬',
+      });
+      setEditingSettings(false);
+    } catch (err: any) {
+      setSettingsError(err.message || 'Failed to save settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center sm:justify-end bg-black/50 backdrop-blur-xs transition-all">
@@ -168,10 +206,25 @@ export function RoomInfoDrawer({
           </div>
         </div>
 
-        {/* Room Code — groups only */}
+        {/* Room Code + creator settings gear — groups only */}
         {!isDirect && (
           <div className="space-y-1.5 pt-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Room UUID</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Room UUID</label>
+              {canEdit && (
+                <button
+                  onClick={() => setEditingSettings((v) => !v)}
+                  className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                    editingSettings
+                      ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
+                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg-subtle)]'
+                  }`}
+                  title="Group settings (creator only)"
+                >
+                  <Icons.sliders className="w-4 h-4" />
+                </button>
+              )}
+            </div>
             <div className="p-3 bg-[var(--bg-subtle)] rounded-xl font-mono text-[11px] text-[var(--text)] break-all border border-[var(--border)] flex items-center justify-between">
               <span>{roomId}</span>
               <button
@@ -181,6 +234,68 @@ export function RoomInfoDrawer({
                 Copy
               </button>
             </div>
+
+            {/* Creator-only inline settings editor */}
+            {canEdit && editingSettings && (
+              <div className="p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)]/50 space-y-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Group name</label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Description</label>
+                  <input
+                    type="text"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="What is this group about?"
+                    className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Emoji</label>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {['💬', '🎮', '📚', '⚽', '🎵', '💼', '🌍', '🔥'].map((em) => (
+                      <button
+                        key={em}
+                        type="button"
+                        onClick={() => setEditEmoji(em)}
+                        className={`p-1.5 rounded-lg text-lg transition-all cursor-pointer ${
+                          editEmoji === em ? 'bg-[var(--primary)]/15 ring-2 ring-[var(--primary)]/40' : 'hover:bg-[var(--bg-subtle)]'
+                        }`}
+                      >
+                        {em}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {settingsError && (
+                  <p className="text-xs text-red-500 font-medium">{settingsError}</p>
+                )}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSettings(false)}
+                    className="flex-1 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveSettings}
+                    disabled={savingSettings || !editTitle.trim()}
+                    className="flex-1 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
+                  >
+                    {savingSettings ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
