@@ -481,9 +481,11 @@ export default function HomePage() {
                 <Icons.users className="w-5 h-5" />
                 <span>Contacts</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[11px] font-bold">
-                {contactRequests.length || 1}
-              </span>
+              {contactRequests.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[11px] font-bold">
+                  {contactRequests.length}
+                </span>
+              )}
             </button>
 
             {/* Groups */}
@@ -1010,9 +1012,9 @@ export default function HomePage() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onLogout={() => setShowLogoutModal(true)}
-        chatsCount={rooms.length || 6}
-        contactsCount={contacts.length || 5}
-        groupsCount={rooms.filter((r) => r.room_type === 'group').length || 2}
+        chatsCount={rooms.length}
+        contactsCount={contacts.length}
+        groupsCount={rooms.filter((r) => r.room_type === 'group').length}
       />
 
       {/* Search Overlay (Ctrl+K) */}

@@ -27,6 +27,8 @@ interface RoomInfoDrawerProps {
   onCopyCode: () => void;
   onShareLink: () => void;
   onLeaveRoom?: () => void;
+  /** 1:1 direct chat — hides invite links, room code; shows the person, not group stats. */
+  isDirect?: boolean;
 }
 
 export function RoomInfoDrawer({
@@ -44,6 +46,7 @@ export function RoomInfoDrawer({
   onCopyCode,
   onShareLink,
   onLeaveRoom,
+  isDirect = false,
 }: RoomInfoDrawerProps) {
   if (!isOpen) return null;
 
@@ -52,7 +55,9 @@ export function RoomInfoDrawer({
       <div className="bg-[var(--card)] border-l border-[var(--border)] w-full max-w-md h-full sm:h-screen flex flex-col shadow-2xl p-5 sm:p-6 overflow-y-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Room Details</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+            {isDirect ? 'Contact Info' : 'Room Details'}
+          </span>
           <button
             onClick={onClose}
             className="p-2 rounded-full hover:bg-[var(--bg-subtle)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
@@ -76,24 +81,26 @@ export function RoomInfoDrawer({
             )}
           </div>
 
-          {/* Quick Actions (Share, Copy) */}
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              onClick={onShareLink}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-xs font-semibold hover:bg-indigo-500/20 transition-all cursor-pointer"
-            >
-              <Icons.share className="w-3.5 h-3.5" />
-              <span>Share Invite</span>
-            </button>
+          {/* Quick Actions (Share, Copy) — groups only; a 1:1 chat has no one to invite */}
+          {!isDirect && (
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={onShareLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-xs font-semibold hover:bg-indigo-500/20 transition-all cursor-pointer"
+              >
+                <Icons.share className="w-3.5 h-3.5" />
+                <span>Share Invite</span>
+              </button>
 
-            <button
-              onClick={onCopyCode}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--card)] transition-all cursor-pointer"
-            >
-              <Icons.copy className="w-3.5 h-3.5 text-[var(--muted)]" />
-              <span>Copy Code</span>
-            </button>
-          </div>
+              <button
+                onClick={onCopyCode}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--card)] transition-all cursor-pointer"
+              >
+                <Icons.copy className="w-3.5 h-3.5 text-[var(--muted)]" />
+                <span>Copy Code</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Distinct Active Languages */}
