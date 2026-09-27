@@ -121,6 +121,7 @@ function makeStyles(C: (typeof Colors)[keyof typeof Colors]) {
     container: { flex: 1, padding: 12, backgroundColor: C.chatBg, gap: 6 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.chatBg },
     title: { fontSize: 16, fontWeight: '800', color: C.text },
+    subtitle: { fontSize: 12, color: C.textSecondary },
     typing: { fontSize: 12, color: C.primary },
     composer: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', backgroundColor: C.chatCard, padding: 8, borderRadius: 14, borderWidth: 1, borderColor: C.border },
     input: { flex: 1, borderWidth: 1, borderColor: C.border, backgroundColor: C.backgroundElement, color: C.text, borderRadius: 12, padding: 10, fontSize: 15, maxHeight: 120 },
