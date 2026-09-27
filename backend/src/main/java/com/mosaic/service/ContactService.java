@@ -77,6 +77,15 @@ public class ContactService {
                     .build();
             contact = contactRepository.save(contact);
 
+            // Friendship is mutual: the added friend sees you in their list too
+            // (same as acceptRequest, which creates both directions).
+            if (!contactRepository.existsByUserIdAndContactUserId(contactUserId, currentUser.getId())) {
+                contactRepository.save(Contact.builder()
+                        .user(targetUser)
+                        .contactUser(currentUser)
+                        .build());
+            }
+
             Optional<ChatRoom> directRoom = chatRoomRepository.findDirectRoomBetweenUsers(currentUser.getId(), contactUserId);
             return new ContactResponse(
                     contact.getId(),
@@ -110,7 +119,10 @@ public class ContactService {
 
     @Transactional
     public void removeContact(UUID contactUserId, User currentUser) {
+        // Unfriend is symmetric: remove both directions so neither side
+        // keeps a stale one-way row.
         contactRepository.deleteByUserIdAndContactUserId(currentUser.getId(), contactUserId);
+        contactRepository.deleteByUserIdAndContactUserId(contactUserId, currentUser.getId());
     }
 
     @Transactional(readOnly = true)

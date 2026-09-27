@@ -461,9 +461,11 @@ export default function HomePage() {
                 <Icons.chat className="w-5 h-5" />
                 <span>Chats</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[11px] font-bold">
-                {rooms.length || 11}
-              </span>
+              {rooms.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[11px] font-bold">
+                  {rooms.length}
+                </span>
+              )}
             </button>
 
             {/* Contacts */}
