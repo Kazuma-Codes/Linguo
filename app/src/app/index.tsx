@@ -21,9 +21,11 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { Colors } from '@/constants/theme';
 import {
   acceptContactRequest,
+  addContact,
   createRoom,
   declineContactRequest,
   getMe,
+  getOrCreateDirectRoom,
   joinRoom,
   listContactRequests,
   listContacts,
@@ -31,6 +33,7 @@ import {
   listRooms,
   login,
   register,
+  searchUsers,
   updatePreferredLanguage,
   updateProfile,
 } from '@/lib/api';
@@ -75,6 +78,9 @@ export default function Home() {
   const [requests, setRequests] = useState<any[]>([]);
   const [roomTitle, setRoomTitle] = useState('');
   const [search, setSearch] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactResults, setContactResults] = useState<any[]>([]);
+  const [contactSearching, setContactSearching] = useState(false);
 
   // Settings tab state (mirrors web SettingsTab)
   const [notificationsOn, setNotificationsOn] = useState(true);
@@ -113,6 +119,12 @@ export default function Home() {
   useEffect(() => {
     if (token) load();
   }, [token]);
+
+  // Refresh friends every time the Contacts tab opens (added on web/another
+  // device show up immediately instead of staying stale from login time).
+  useEffect(() => {
+    if (token && tab === 'contacts') load();
+  }, [tab]);
 
   async function handleAuth() {
     setError('');
@@ -181,6 +193,49 @@ export default function Home() {
       if (accept) await acceptContactRequest(token, id);
       else await declineContactRequest(token, id);
       await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  async function handleFindFriends() {
+    if (!token || !contactSearch.trim()) {
+      setContactResults([]);
+      return;
+    }
+    setContactSearching(true);
+    try {
+      const res = await searchUsers(token, contactSearch.trim());
+      setContactResults(Array.isArray(res) ? res : []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setContactSearching(false);
+    }
+  }
+
+  async function handleAddFriend(targetUserId: string) {
+    if (!token) return;
+    try {
+      await addContact(token, targetUserId);
+      setContactSearch('');
+      setContactResults([]);
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  async function handleOpenDirectChat(friendUserId: string, directRoomId?: string) {
+    if (!token) return;
+    try {
+      if (directRoomId) {
+        router.push(`/chat/${directRoomId}` as any);
+        return;
+      }
+      const room = await getOrCreateDirectRoom(token, friendUserId);
+      await load();
+      router.push(`/chat/${room.id}` as any);
     } catch (e: any) {
       setError(e.message);
     }

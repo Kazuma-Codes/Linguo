@@ -77,6 +77,8 @@ export const getOrCreateDirectRoom = (token: string, targetUserId: string) =>
 export const searchUsers = (token: string, q: string) => apiFetch(`/users/search?q=${encodeURIComponent(q)}`, token);
 export const listContacts = (token: string) => apiFetch('/contacts', token).catch(() => []);
 export const listContactRequests = (token: string) => apiFetch('/contacts/requests', token).catch(() => []);
+export const addContact = (token: string, contactUserId: string) =>
+  apiFetch(`/contacts/${contactUserId}`, token, { method: 'POST' });
 export const acceptContactRequest = (token: string, requestId: string) =>
   apiFetch(`/contacts/requests/${requestId}/accept`, token, { method: 'POST' });
 export const declineContactRequest = (token: string, requestId: string) =>
