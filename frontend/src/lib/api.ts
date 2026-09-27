@@ -189,11 +189,11 @@ export async function getRoom(token: string, roomId: string) {
   });
 }
 
-/** Update group settings (creator only): title, description, emoji. */
+/** Update group settings (creator only): title, description, emoji, avatar. */
 export async function updateRoom(
   token: string,
   roomId: string,
-  data: { title?: string; description?: string; emoji?: string }
+  data: { title?: string; description?: string; emoji?: string; avatarUrl?: string }
 ) {
   return apiFetch(`/rooms/${roomId}`, {
     method: 'PATCH',

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { MergedAvatar } from '@/components/common/MergedAvatar';
+import { AvatarCropper } from '@/components/common/AvatarCropper';
 import { Icons } from '@/lib/icons';
 
 export interface MemberInfo {
@@ -36,8 +37,8 @@ interface RoomInfoDrawerProps {
   isAdmin?: boolean;
   /** Creator's user UUID — that row gets an Admin badge. */
   creatorId?: string;
-  /** Persist group title/description/emoji (creator only). */
-  onSaveSettings?: (data: { title: string; description: string; emoji: string }) => Promise<void>;
+  /** Persist group title/description/emoji/avatar (creator only). */
+  onSaveSettings?: (data: { title: string; description: string; emoji: string; avatarUrl: string }) => Promise<void>;
 }
 
 export function RoomInfoDrawer({
@@ -65,6 +66,8 @@ export function RoomInfoDrawer({
   const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description || '');
   const [editEmoji, setEditEmoji] = useState(emoji || '💬');
+  const [editAvatar, setEditAvatar] = useState(avatarUrl || '');
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
@@ -74,8 +77,10 @@ export function RoomInfoDrawer({
     setEditTitle(title);
     setEditDescription(description || '');
     setEditEmoji(emoji || '💬');
+    setEditAvatar(avatarUrl || '');
+    setShowAvatarPicker(false);
     setSettingsError(null);
-  }, [roomId, title, description, emoji]);
+  }, [roomId, title, description, emoji, avatarUrl]);
 
   if (!isOpen) return null;
 
@@ -90,8 +95,10 @@ export function RoomInfoDrawer({
         title: editTitle.trim(),
         description: editDescription.trim(),
         emoji: editEmoji.trim() || '💬',
+        avatarUrl: editAvatar.trim(),
       });
       setEditingSettings(false);
+      setShowAvatarPicker(false);
     } catch (err: any) {
       setSettingsError(err.message || 'Failed to save settings');
     } finally {
@@ -130,27 +137,131 @@ export function RoomInfoDrawer({
             )}
           </div>
 
-          {/* Quick Actions (Share, Copy) — groups only; a 1:1 chat has no one to invite */}
-          {!isDirect && (
+          {/* Quick Actions (Share, Copy, Settings) */}
+          <div className="flex items-center gap-2 pt-1">
+            {!isDirect && (
+              <>
+                <button
+                  onClick={onShareLink}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-xs font-semibold hover:bg-indigo-500/20 transition-all cursor-pointer"
+                >
+                  <Icons.share className="w-3.5 h-3.5" />
+                  <span>Share Invite</span>
+                </button>
+
+                <button
+                  onClick={onCopyCode}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--card)] transition-all cursor-pointer"
+                >
+                  <Icons.copy className="w-3.5 h-3.5 text-[var(--muted)]" />
+                  <span>Copy Code</span>
+                </button>
+              </>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => setEditingSettings((v) => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
+                  editingSettings
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                    : 'border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text)] hover:bg-[var(--card)]'
+                }`}
+                title="Group settings (creator only)"
+              >
+                <Icons.sliders className="w-3.5 h-3.5" />
+                <span>Settings</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Creator-only inline settings editor (right under the Copy Code row) */}
+        {canEdit && editingSettings && (
+          <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-subtle)]/50 space-y-3">
+            <div className="flex items-center gap-3">
+              <MergedAvatar
+                name={editTitle || title}
+                avatarUrl={editAvatar || undefined}
+                emoji={editEmoji}
+                size="lg"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-[var(--text)]">Group photo</p>
+                <button
+                  type="button"
+                  onClick={() => setShowAvatarPicker((v) => !v)}
+                  className="mt-1 px-3 py-1.5 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] text-xs font-bold hover:bg-[var(--primary)]/20 transition-colors cursor-pointer"
+                >
+                  {showAvatarPicker ? 'Hide picker' : 'Change photo'}
+                </button>
+              </div>
+            </div>
+            {showAvatarPicker && (
+              <AvatarCropper
+                onApply={(dataUrl) => {
+                  setEditAvatar(dataUrl);
+                  setShowAvatarPicker(false);
+                }}
+              />
+            )}
+            <div>
+              <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Group name</label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Description</label>
+              <input
+                type="text"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="What is this group about?"
+                className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Emoji</label>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {['💬', '🎮', '📚', '⚽', '🎵', '💼', '🌍', '🔥'].map((em) => (
+                  <button
+                    key={em}
+                    type="button"
+                    onClick={() => setEditEmoji(em)}
+                    className={`p-1.5 rounded-lg text-lg transition-all cursor-pointer ${
+                      editEmoji === em ? 'bg-[var(--primary)]/15 ring-2 ring-[var(--primary)]/40' : 'hover:bg-[var(--bg-subtle)]'
+                    }`}
+                  >
+                    {em}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {settingsError && (
+              <p className="text-xs text-red-500 font-medium">{settingsError}</p>
+            )}
             <div className="flex items-center gap-2 pt-1">
               <button
-                onClick={onShareLink}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-xs font-semibold hover:bg-indigo-500/20 transition-all cursor-pointer"
+                type="button"
+                onClick={() => setEditingSettings(false)}
+                className="flex-1 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
               >
-                <Icons.share className="w-3.5 h-3.5" />
-                <span>Share Invite</span>
+                Cancel
               </button>
-
               <button
-                onClick={onCopyCode}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--card)] transition-all cursor-pointer"
+                type="button"
+                onClick={handleSaveSettings}
+                disabled={savingSettings || !editTitle.trim()}
+                className="flex-1 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
               >
-                <Icons.copy className="w-3.5 h-3.5 text-[var(--muted)]" />
-                <span>Copy Code</span>
+                {savingSettings ? 'Saving…' : 'Save'}
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Distinct Active Languages */}
         {distinctLangs.length > 0 && (
@@ -216,96 +327,19 @@ export function RoomInfoDrawer({
           </div>
         </div>
 
-        {/* Room Code + creator settings gear — groups only */}
+        {/* Room Code — groups only */}
         {!isDirect && (
           <div className="space-y-1.5 pt-2">
             <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Room UUID</label>
             <div className="p-3 bg-[var(--bg-subtle)] rounded-xl font-mono text-[11px] text-[var(--text)] break-all border border-[var(--border)] flex items-center justify-between">
               <span>{roomId}</span>
-              <div className="flex items-center gap-1.5 ml-2 flex-none">
-                <button
-                  onClick={onCopyCode}
-                  className="px-2.5 py-1 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 cursor-pointer"
-                >
-                  Copy
-                </button>
-                {canEdit && (
-                  <button
-                    onClick={() => setEditingSettings((v) => !v)}
-                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                      editingSettings
-                        ? 'bg-[var(--primary)] text-white'
-                        : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--card)] border border-[var(--border)]'
-                    }`}
-                    title="Group settings (creator only)"
-                  >
-                    <Icons.sliders className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+              <button
+                onClick={onCopyCode}
+                className="px-2.5 py-1 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 ml-2 cursor-pointer flex-none"
+              >
+                Copy
+              </button>
             </div>
-
-            {/* Creator-only inline settings editor */}
-            {canEdit && editingSettings && (
-              <div className="p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)]/50 space-y-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Group name</label>
-                  <input
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Description</label>
-                  <input
-                    type="text"
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    placeholder="What is this group about?"
-                    className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Emoji</label>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {['💬', '🎮', '📚', '⚽', '🎵', '💼', '🌍', '🔥'].map((em) => (
-                      <button
-                        key={em}
-                        type="button"
-                        onClick={() => setEditEmoji(em)}
-                        className={`p-1.5 rounded-lg text-lg transition-all cursor-pointer ${
-                          editEmoji === em ? 'bg-[var(--primary)]/15 ring-2 ring-[var(--primary)]/40' : 'hover:bg-[var(--bg-subtle)]'
-                        }`}
-                      >
-                        {em}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {settingsError && (
-                  <p className="text-xs text-red-500 font-medium">{settingsError}</p>
-                )}
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setEditingSettings(false)}
-                    className="flex-1 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveSettings}
-                    disabled={savingSettings || !editTitle.trim()}
-                    className="flex-1 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
-                  >
-                    {savingSettings ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 

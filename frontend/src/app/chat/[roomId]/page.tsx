@@ -142,7 +142,7 @@ export default function ChatRoomPage() {
     }
   };
 
-  const handleSaveGroupSettings = async (data: { title: string; description: string; emoji: string }) => {
+  const handleSaveGroupSettings = async (data: { title: string; description: string; emoji: string; avatarUrl: string }) => {
     if (!token) return;
     const updated = await updateRoom(token, roomId, data);
     setRoomDetail(updated);

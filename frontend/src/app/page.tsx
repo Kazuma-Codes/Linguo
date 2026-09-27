@@ -372,7 +372,7 @@ export default function HomePage() {
     }
   };
 
-  const handleSaveGroupSettings = async (data: { title: string; description: string; emoji: string }) => {
+  const handleSaveGroupSettings = async (data: { title: string; description: string; emoji: string; avatarUrl: string }) => {
     if (!token || !activeRoomId) return;
     const updated = await updateRoom(token, activeRoomId, data);
     setActiveRoomDetail(updated);
