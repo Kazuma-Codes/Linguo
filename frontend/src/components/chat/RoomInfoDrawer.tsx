@@ -125,7 +125,7 @@ export function RoomInfoDrawer({
         {/* Member Roster with Seats */}
         <div className="space-y-3 flex-1 min-h-0">
           <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-            Participants ({members.length})
+            {isDirect ? 'People' : `Participants (${members.length})`}
           </label>
           <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
             {members.map((m) => (
@@ -156,19 +156,21 @@ export function RoomInfoDrawer({
           </div>
         </div>
 
-        {/* Room Code */}
-        <div className="space-y-1.5 pt-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Room UUID</label>
-          <div className="p-3 bg-[var(--bg-subtle)] rounded-xl font-mono text-[11px] text-[var(--text)] break-all border border-[var(--border)] flex items-center justify-between">
-            <span>{roomId}</span>
-            <button
-              onClick={onCopyCode}
-              className="px-2.5 py-1 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 ml-2 cursor-pointer flex-none"
-            >
-              Copy
-            </button>
+        {/* Room Code — groups only */}
+        {!isDirect && (
+          <div className="space-y-1.5 pt-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Room UUID</label>
+            <div className="p-3 bg-[var(--bg-subtle)] rounded-xl font-mono text-[11px] text-[var(--text)] break-all border border-[var(--border)] flex items-center justify-between">
+              <span>{roomId}</span>
+              <button
+                onClick={onCopyCode}
+                className="px-2.5 py-1 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 ml-2 cursor-pointer flex-none"
+              >
+                Copy
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Leave Room Trigger */}
         {onLeaveRoom && (

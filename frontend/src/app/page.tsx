@@ -790,12 +790,14 @@ export default function HomePage() {
                     />
                   </div>
 
-                  {/* Typing Indicator or Member count */}
+                  {/* Typing Indicator, DM label, or Member count */}
                   <p className="text-xs text-[var(--muted)] truncate">
                     {Object.keys(typingUsers).length > 0 ? (
                       <span className="text-[var(--primary)] font-semibold animate-pulse">
                         {Object.values(typingUsers)[0].username || Object.values(typingUsers)[0].email.split('@')[0]} is typing...
                       </span>
+                    ) : activeRoomDetail?.room_type === 'direct' ? (
+                      'Direct message'
                     ) : (
                       `${roomMembers.length} participant${roomMembers.length > 1 ? 's' : ''}`
                     )}
@@ -815,14 +817,16 @@ export default function HomePage() {
                   <span className="font-bold text-[var(--primary)]">{currentSeatName}</span>
                 </button>
 
-                {/* Share Link */}
-                <button
-                  onClick={handleShareLink}
-                  className="p-2 rounded-full hover:bg-[var(--bg-subtle)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
-                  title="Share Invite Link"
-                >
-                  <Icons.share className="w-4 h-4" />
-                </button>
+                {/* Share Link — groups only; a 1:1 chat has no one to invite */}
+                {activeRoomDetail?.room_type !== 'direct' && (
+                  <button
+                    onClick={handleShareLink}
+                    className="p-2 rounded-full hover:bg-[var(--bg-subtle)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+                    title="Share Invite Link"
+                  >
+                    <Icons.share className="w-4 h-4" />
+                  </button>
+                )}
 
                 {/* Room Info Trigger (Drawer) */}
                 <button
