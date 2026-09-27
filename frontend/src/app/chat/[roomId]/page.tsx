@@ -149,6 +149,17 @@ export default function ChatRoomPage() {
     router.push('/');
   };
 
+  const handleOpenDirectChat = async (targetUserId: string) => {
+    if (!token) return;
+    try {
+      const room = await getOrCreateDirectRoom(token, targetUserId);
+      setSelectedUserId(null);
+      router.push(`/chat/${room.id}`);
+    } catch {
+      showToast('Failed to open direct chat');
+    }
+  };
+
   if (!hasHydrated) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[var(--bg)] text-[var(--muted)]">
@@ -180,12 +191,26 @@ export default function ChatRoomPage() {
               <Icons.back className="w-5 h-5" />
             </button>
 
-            <MergedAvatar
-              name={roomTitle}
-              avatarUrl={roomDetail?.avatar_url}
-              emoji={roomDetail?.emoji || '💬'}
-              size="md"
-            />
+            {/* Tap avatar: DM → other person's profile; group → room details */}
+            <span
+              onClick={() => {
+                if (roomDetail?.room_type === 'direct') {
+                  const other = members.find((m) => m.email !== user.email);
+                  if (other?.user_id) setSelectedUserId(other.user_id);
+                } else {
+                  setShowDetailsDrawer(true);
+                }
+              }}
+              className="cursor-pointer flex-none"
+              title={roomDetail?.room_type === 'direct' ? 'View profile' : 'Room details'}
+            >
+              <MergedAvatar
+                name={roomTitle}
+                avatarUrl={roomDetail?.avatar_url}
+                emoji={roomDetail?.emoji || '💬'}
+                size="md"
+              />
+            </span>
 
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -342,7 +367,16 @@ export default function ChatRoomPage() {
         onCopyCode={handleCopyCode}
         onShareLink={handleShareLink}
         isDirect={roomDetail?.room_type === 'direct'}
+        onSelectMember={(uid) => setSelectedUserId(uid)}
         onLeaveRoom={() => router.push('/')}
+      />
+
+      {/* User detail popup (DM avatar tap / roster tap) */}
+      <UserDetailPopup
+        token={token}
+        userId={selectedUserId}
+        onClose={() => setSelectedUserId(null)}
+        onChat={(uid) => handleOpenDirectChat(uid)}
       />
 
       {/* Toast notifications */}
