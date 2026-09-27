@@ -17,6 +17,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Colors } from '@/constants/theme';
 import {
@@ -26,6 +28,7 @@ import {
   declineContactRequest,
   getMe,
   getOrCreateDirectRoom,
+  googleLogin,
   joinRoom,
   listContactRequests,
   listContacts,
@@ -42,6 +45,8 @@ import { API_BASE_URL } from '@/lib/config';
 
 type Tab = 'chats' | 'contacts' | 'groups' | 'settings' | 'profile';
 type C = (typeof Colors)[keyof typeof Colors];
+
+WebBrowser.maybeCompleteAuthSession();
 
 const AVATAR_COLORS = ['#3b82f6', '#ec4899', '#6C5CE7', '#10b981', '#f59e0b', '#ef4444'];
 
@@ -100,6 +105,43 @@ export default function Home() {
 
   const myLang = user?.preferred_language || 'en';
   const myName = user?.username || user?.email?.split('@')[0] || 'T';
+
+  // Google Sign-In via Expo proxy (works in Expo Go; no native build needed).
+  // Needs EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (and Android ID for prod builds).
+  const googleIdConfigured = !!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    useProxy: true,
+  });
+
+  useEffect(() => {
+    if (googleResponse?.type !== 'success') return;
+    const idToken = (googleResponse.params as any)?.id_token;
+    if (!idToken) {
+      setError('Google did not return a credential');
+      return;
+    }
+    (async () => {
+      setLoading(true);
+      try {
+        const t = await googleLogin(idToken);
+        const access = t.access_token || t.accessToken;
+        const me = await getMe(access);
+        await setAuth(access, {
+          id: me.id,
+          email: me.email,
+          username: me.username,
+          avatar_url: me.avatar_url,
+          preferred_language: me.preferred_language || me.preferredLanguage || 'en',
+        });
+      } catch (e: any) {
+        setError(e.message || 'Google sign-in failed');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [googleResponse]);
 
   async function load() {
     if (!token) return;
@@ -363,6 +405,23 @@ async function handleChangePhoto() {
         <Pressable onPress={() => setIsLogin((v) => !v)}>
           <Text style={s.link}>{isLogin ? 'Need an account? Sign up' : 'Have an account? Log in'}</Text>
         </Pressable>
+        {googleIdConfigured && (
+          <>
+            <View style={s.orRow}>
+              <View style={s.orLine} />
+              <Text style={s.sub}>or</Text>
+              <View style={s.orLine} />
+            </View>
+            <Pressable
+              style={s.googleBtn}
+              onPress={() => googlePromptAsync()}
+              disabled={!googleRequest || loading}
+            >
+              <Ionicons name="logo-google" size={18} color="#DB4437" />
+              <Text style={s.googleBtnText}>Continue with Google</Text>
+            </Pressable>
+          </>
+        )}
       </SafeAreaView>
     );
   }
@@ -1010,6 +1069,10 @@ function makeStyles(c: C) {
     primary: { backgroundColor: c.primary, borderRadius: 10, padding: 12, alignItems: 'center' },
     primaryText: { color: '#fff', fontWeight: '800' },
     link: { color: c.primary, textAlign: 'center', marginTop: 6 },
+    orRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+    orLine: { flex: 1, height: 1, backgroundColor: c.border },
+    googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.card, borderRadius: 10, padding: 12 },
+    googleBtnText: { color: c.text, fontWeight: '700', fontSize: 15 },
     input: { borderWidth: 1, borderColor: c.border, backgroundColor: c.card, color: c.text, borderRadius: 10, padding: 10, fontSize: 15 },
     joinRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
     tabbar: { backgroundColor: c.card, borderTopWidth: 1, borderTopColor: c.border },

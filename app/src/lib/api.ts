@@ -35,8 +35,7 @@ async function apiFetch(path: string, token?: string | null, options: RequestIni
   return text ? JSON.parse(text) : null;
 }
 
-export async function login(email: string, password: string) {
-  const form = new URLSearchParams();
+export async function login(email: string, password: string) {  const form = new URLSearchParams();
   form.append('username', email);
   form.append('password', password);
   const res = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -56,6 +55,10 @@ export async function register(email: string, password: string, preferred_langua
 }
 
 export const getMe = (token: string) => apiFetch('/auth/me', token);
+
+/** Google Sign-In: exchange a Google ID token for our JWT. */
+export const googleLogin = (idToken: string) =>
+  apiFetch('/auth/google', null, { method: 'POST', body: JSON.stringify({ id_token: idToken }) });
 export const updatePreferredLanguage = (token: string, preferred_language: string) =>
   apiFetch('/auth/preferred-language', token, { method: 'PATCH', body: JSON.stringify({ preferred_language }) });
 

@@ -9,6 +9,7 @@ import {
   login,
   register,
   getMe,
+  googleLogin,
   createRoom,
   joinRoom,
   listRooms,
@@ -238,6 +239,23 @@ export default function HomePage() {
   }, [hasHydrated, token]);
 
   // Auth Handling
+  const handleGoogleLogin = async (credential: string) => {
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      const data = await googleLogin(credential);
+      const userData = await getMe(data.access_token);
+      setAuth(data.access_token, userData);
+      setEmail('');
+      setPassword('');
+      showToast('✨ Welcome to Linguo!');
+    } catch (err: any) {
+      setAuthError(err.message || 'Google sign-in failed. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -466,6 +484,8 @@ export default function HomePage() {
         handleAuth={handleAuth}
         theme={theme}
         toggleTheme={toggleTheme}
+        googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+        onGoogleLogin={handleGoogleLogin}
       />
     );
   }
