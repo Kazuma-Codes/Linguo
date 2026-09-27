@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useThemeStore } from '@/store/useThemeStore';
-import { getRoom, getRoomMessages, getMembers, getOrCreateDirectRoom } from '@/lib/api';
+import { getRoom, getRoomMessages, getMembers, getOrCreateDirectRoom, updateRoom } from '@/lib/api';
 import { MergedMessageBubble } from '@/components/chat/MergedMessageBubble';
 import { MergedComposer } from '@/components/chat/MergedComposer';
 import { ChatDraftPreview } from '@/components/chat/ChatDraftPreview';
@@ -140,6 +140,14 @@ export default function ChatRoomPage() {
     } catch {
       showToast(`📋 ${roomId}`);
     }
+  };
+
+  const handleSaveGroupSettings = async (data: { title: string; description: string; emoji: string }) => {
+    if (!token) return;
+    const updated = await updateRoom(token, roomId, data);
+    setRoomDetail(updated);
+    if (updated.title) setRoomTitle(updated.title);
+    showToast('⚙️ Group settings saved');
   };
 
   const handleLogout = () => {
