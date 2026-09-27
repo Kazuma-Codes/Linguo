@@ -218,23 +218,6 @@ export function RoomInfoDrawer({
                 className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">Emoji</label>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {['💬', '🎮', '📚', '⚽', '🎵', '💼', '🌍', '🔥'].map((em) => (
-                  <button
-                    key={em}
-                    type="button"
-                    onClick={() => setEditEmoji(em)}
-                    className={`p-1.5 rounded-lg text-lg transition-all cursor-pointer ${
-                      editEmoji === em ? 'bg-[var(--primary)]/15 ring-2 ring-[var(--primary)]/40' : 'hover:bg-[var(--bg-subtle)]'
-                    }`}
-                  >
-                    {em}
-                  </button>
-                ))}
-              </div>
-            </div>
             {settingsError && (
               <p className="text-xs text-red-500 font-medium">{settingsError}</p>
             )}
