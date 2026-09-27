@@ -34,6 +34,8 @@ interface RoomInfoDrawerProps {
   onSelectMember?: (userId: string) => void;
   /** True when the viewer is the group creator — shows the settings gear. */
   isAdmin?: boolean;
+  /** Creator's user UUID — that row gets an Admin badge. */
+  creatorId?: string;
   /** Persist group title/description/emoji (creator only). */
   onSaveSettings?: (data: { title: string; description: string; emoji: string }) => Promise<void>;
 }
@@ -56,6 +58,7 @@ export function RoomInfoDrawer({
   isDirect = false,
   onSelectMember,
   isAdmin = false,
+  creatorId,
   onSaveSettings,
 }: RoomInfoDrawerProps) {
   const [editingSettings, setEditingSettings] = useState(false);
@@ -194,7 +197,14 @@ export function RoomInfoDrawer({
                       {m.username || m.email.split('@')[0]}
                       {m.email === currentEmail && ' (You)'}
                     </p>
-                    <p className="text-[10px] text-[var(--muted)] truncate">{m.email}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <p className="text-[10px] text-[var(--muted)] truncate">{m.email}</p>
+                      {creatorId && m.user_id === creatorId && (
+                        <span className="flex-none px-1.5 py-px rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[9px] font-bold uppercase tracking-wider">
+                          Admin
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
