@@ -410,6 +410,45 @@ async function handleChangePhoto() {
         {tab === 'contacts' && (
           <>
             <Text style={s.headerTitle}>Contacts</Text>
+            <View style={s.searchPill}>
+              <Ionicons name="search-outline" size={15} color={c.textSecondary} />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Find friends by name or email..."
+                placeholderTextColor={c.textSecondary}
+                value={contactSearch}
+                onChangeText={setContactSearch}
+                onSubmitEditing={handleFindFriends}
+                returnKeyType="search"
+              />
+              <Pressable style={s.miniPrimary} onPress={handleFindFriends} disabled={contactSearching}>
+                <Text style={s.miniPrimaryText}>{contactSearching ? '…' : 'Find'}</Text>
+              </Pressable>
+            </View>
+            {contactResults.length > 0 && (
+              <>
+                <Text style={s.sectionLabel}>Results — tap + to add</Text>
+                {contactResults.map((u: any) => {
+                  const already = contacts.some((ct: any) => (ct.user_id || ct.id) === (u.id || u.user_id));
+                  return (
+                    <View key={u.id || u.user_id} style={s.row}>
+                      <RoomAvatar title={u.username || u.email || '?'} />
+                      <View style={s.rowText}>
+                        <Text style={s.rowTitle}>{u.username || u.email?.split('@')[0]}</Text>
+                        <Text style={s.rowSub} numberOfLines={1}>
+                          {u.about || u.email}
+                        </Text>
+                      </View>
+                      {!already && (
+                        <Pressable style={s.miniPrimary} onPress={() => handleAddFriend(u.id || u.user_id)}>
+                          <Text style={s.miniPrimaryText}>+ Add</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  );
+                })}
+              </>
+            )}
             {requests.length > 0 && (
               <>
                 <Text style={s.sectionLabel}>Requests</Text>
@@ -431,12 +470,15 @@ async function handleChangePhoto() {
                 ))}
               </>
             )}
-            <Text style={s.sectionLabel}>All contacts</Text>
+            <Text style={s.sectionLabel}>My friends ({contacts.length})</Text>
             <FlatList
               data={contacts}
-              keyExtractor={(ct: any) => ct.user_id || ct.id}
+              keyExtractor={(ct: any) => String(ct.user_id || ct.id)}
               renderItem={({ item }: any) => (
-                <View style={s.row}>
+                <Pressable
+                  style={s.row}
+                  onPress={() => handleOpenDirectChat(String(item.user_id || item.id), item.direct_room_id)}
+                >
                   <RoomAvatar title={item.username || item.email || '?'} />
                   <View style={s.rowText}>
                     <Text style={s.rowTitle}>{item.username || item.email?.split('@')[0]}</Text>
@@ -444,9 +486,10 @@ async function handleChangePhoto() {
                       {item.about || item.email}
                     </Text>
                   </View>
-                </View>
+                  <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
+                </Pressable>
               )}
-              ListEmptyComponent={<Text style={s.empty}>No contacts yet</Text>}
+              ListEmptyComponent={<Text style={s.empty}>No friends yet — search above to add people.</Text>}
             />
           </>
         )}
