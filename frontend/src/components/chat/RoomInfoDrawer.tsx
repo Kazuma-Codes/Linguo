@@ -219,30 +219,30 @@ export function RoomInfoDrawer({
         {/* Room Code + creator settings gear — groups only */}
         {!isDirect && (
           <div className="space-y-1.5 pt-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Room UUID</label>
-              {canEdit && (
-                <button
-                  onClick={() => setEditingSettings((v) => !v)}
-                  className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                    editingSettings
-                      ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
-                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg-subtle)]'
-                  }`}
-                  title="Group settings (creator only)"
-                >
-                  <Icons.sliders className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Room UUID</label>
             <div className="p-3 bg-[var(--bg-subtle)] rounded-xl font-mono text-[11px] text-[var(--text)] break-all border border-[var(--border)] flex items-center justify-between">
               <span>{roomId}</span>
-              <button
-                onClick={onCopyCode}
-                className="px-2.5 py-1 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 ml-2 cursor-pointer flex-none"
-              >
-                Copy
-              </button>
+              <div className="flex items-center gap-1.5 ml-2 flex-none">
+                <button
+                  onClick={onCopyCode}
+                  className="px-2.5 py-1 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 cursor-pointer"
+                >
+                  Copy
+                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => setEditingSettings((v) => !v)}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      editingSettings
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--card)] border border-[var(--border)]'
+                    }`}
+                    title="Group settings (creator only)"
+                  >
+                    <Icons.sliders className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Creator-only inline settings editor */}

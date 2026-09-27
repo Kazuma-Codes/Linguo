@@ -377,6 +377,7 @@ export default function ChatRoomPage() {
         isDirect={roomDetail?.room_type === 'direct'}
         onSelectMember={(uid) => setSelectedUserId(uid)}
         isAdmin={!!user && !!roomDetail?.creator_id && roomDetail.creator_id === user.id}
+        creatorId={roomDetail?.creator_id}
         onSaveSettings={handleSaveGroupSettings}
         onLeaveRoom={() => router.push('/')}
       />

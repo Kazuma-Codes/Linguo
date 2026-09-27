@@ -1011,6 +1011,7 @@ export default function HomePage() {
           isDirect={activeRoomDetail?.room_type === 'direct'}
           onSelectMember={(uid) => setSelectedUserId(uid)}
           isAdmin={!!user && !!activeRoomDetail?.creator_id && activeRoomDetail.creator_id === user.id}
+          creatorId={activeRoomDetail?.creator_id}
           onSaveSettings={handleSaveGroupSettings}
           onLeaveRoom={() => {
             setShowInfoDrawer(false);
