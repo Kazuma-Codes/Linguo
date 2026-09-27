@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useEffect, useState } from 'react';
 import { MergedAvatar } from '@/components/common/MergedAvatar';
 import { Icons } from '@/lib/icons';
 
@@ -31,6 +32,10 @@ interface RoomInfoDrawerProps {
   isDirect?: boolean;
   /** Tap a participant to see their detail popup. */
   onSelectMember?: (userId: string) => void;
+  /** True when the viewer is the group creator — shows the settings gear. */
+  isAdmin?: boolean;
+  /** Persist group title/description/emoji (creator only). */
+  onSaveSettings?: (data: { title: string; description: string; emoji: string }) => Promise<void>;
 }
 
 export function RoomInfoDrawer({
