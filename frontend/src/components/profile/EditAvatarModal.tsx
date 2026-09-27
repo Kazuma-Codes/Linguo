@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Icons } from '@/lib/icons';
 import { MergedAvatar } from '@/components/common/MergedAvatar';
+import { AvatarCropper } from '@/components/common/AvatarCropper';
 import { AVATAR_PRESETS } from '@/lib/avatarPresets';
 
 interface EditAvatarModalProps {
@@ -294,147 +295,9 @@ export function EditAvatarModal({
           </button>
         </div>
 
-        {/* Tab 1: Upload + interactive crop */}
+        {/* Tab 1: Upload + crop (shared component, also used for group avatars) */}
         {activeTab === 'upload' && (
-          <div className="space-y-3">
-            {!cropSrc ? (
-              <label
-                htmlFor="avatar-upload-input"
-                className="border-2 border-dashed border-[var(--border)] hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer hover:bg-[var(--bg-subtle)] transition-all flex flex-col items-center space-y-2"
-              >
-                <input
-                  id="avatar-upload-input"
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="sr-only"
-                />
-                <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center pointer-events-none">
-                  <Icons.upload className="w-6 h-6" />
-                </div>
-                <div className="pointer-events-none">
-                  <p className="text-xs font-bold text-[var(--text)]">
-                    Tap to upload a picture
-                  </p>
-                  <p className="text-[11px] text-[var(--muted)] mt-0.5">
-                    PNG, JPG, or WebP. You&apos;ll crop it next.
-                  </p>
-                </div>
-              </label>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs font-bold text-[var(--text)] text-center">
-                  Drag the square to position • drag the corner to resize
-                </p>
-                {/* Crop canvas area */}
-                <div
-                  ref={containerRef}
-                  className="relative w-full overflow-hidden rounded-2xl bg-black/80 select-none"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    ref={cropImgRef}
-                    src={cropSrc}
-                    alt="Crop source"
-                    onLoad={initCropBox}
-                    draggable={false}
-                    className="w-full h-auto pointer-events-none"
-                    style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
-                  />
-                  {/* Dimmed mask with square hole */}
-                  <div
-                    className="absolute touch-none cursor-move"
-                    style={{
-                      left: cropBox.x,
-                      top: cropBox.y,
-                      width: cropBox.size,
-                      height: cropBox.size,
-                      boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)',
-                      border: '2px solid #fff',
-                      borderRadius: 8,
-                    }}
-                    onPointerDown={(e) => {
-                      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-                      dragRef.current = {
-                        mode: 'move',
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        box: { ...cropBox },
-                      };
-                    }}
-                  >
-                    {/* Thirds grid */}
-                    <div className="absolute inset-0 pointer-events-none">
-                      <div className="absolute top-0 bottom-0 left-1/3 w-px bg-white/50" />
-                      <div className="absolute top-0 bottom-0 left-2/3 w-px bg-white/50" />
-                      <div className="absolute left-0 right-0 top-1/3 h-px bg-white/50" />
-                      <div className="absolute left-0 right-0 top-2/3 h-px bg-white/50" />
-                    </div>
-                    {/* Resize handle */}
-                    <div
-                      className="absolute -bottom-2 -right-2 w-6 h-6 rounded-md bg-white shadow-md cursor-nwse-resize touch-none flex items-center justify-center"
-                      onPointerDown={(e) => {
-                        e.stopPropagation();
-                        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-                        dragRef.current = {
-                          mode: 'resize',
-                          startX: e.clientX,
-                          startY: e.clientY,
-                          box: { ...cropBox },
-                        };
-                      }}
-                    >
-                      <Icons.chevR className="w-4 h-4 text-slate-600 rotate-45" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Zoom + live preview row */}
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] font-bold text-[var(--muted)] flex-none">Zoom</span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={3}
-                    step={0.05}
-                    value={zoom}
-                    onChange={(e) => setZoom(Number(e.target.value))}
-                    className="flex-1 accent-blue-600 cursor-pointer"
-                  />
-                  <canvas
-                    ref={previewRef}
-                    width={56}
-                    height={56}
-                    className="w-14 h-14 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] flex-none"
-                  />
-                </div>
-
-                {/* Crop actions */}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={clearCrop}
-                    className="flex-1 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
-                  >
-                    Choose different photo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleApplyCrop}
-                    disabled={uploadLoading}
-                    className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    {uploadLoading ? 'Applying…' : 'Apply crop'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {uploadError && (
-              <p className="text-xs text-red-500 font-medium text-center">{uploadError}</p>
-            )}
-          </div>
+          <AvatarCropper onApply={(dataUrl) => setSelectedAvatar(dataUrl)} />
         )}
 
         {/* Tab 2: Curated Presets */}
