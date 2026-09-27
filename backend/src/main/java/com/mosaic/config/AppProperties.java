@@ -53,7 +53,7 @@ public class AppProperties {
         private String secret;
 
         @Positive(message = "app.jwt.expiration-minutes must be positive")
-        private int expirationMinutes = 10080;
+        private int expirationMinutes = 60;
 
         public String getSecret() {
             return secret;
@@ -81,7 +81,7 @@ public class AppProperties {
 
         private String baseUrl = "https://api.groq.com/openai/v1";
         private String model = "openai/gpt-oss-20b";
-        private String backupModel = "qwen/qwen3.8-27b";
+        private String backupModel = "openai/gpt-oss-120b";
 
         public String getApiKey() {
             return apiKey;

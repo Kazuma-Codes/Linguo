@@ -13,6 +13,8 @@ export interface User {
   avatar_url?: string;
   about?: string;
   phone?: string;
+  show_online?: boolean;
+  read_receipts?: boolean;
 }
 
 interface AuthState {

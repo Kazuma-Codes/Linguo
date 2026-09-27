@@ -89,6 +89,18 @@ let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 const MAX_RECONNECT_ATTEMPTS = 6;
 let reconnectAttempts = 0;
 
+function isSafeHttpUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (trimmed.length === 0 || trimmed.length > 2048 || trimmed.includes(' ')) return false;
+  const lower = trimmed.toLowerCase();
+  return lower.startsWith('https://') || lower.startsWith('http://');
+}
+
+function sanitizeAttachment(url?: string): string | undefined {
+  return isSafeHttpUrl(url) ? (url as string).trim() : undefined;
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   drafts: [],
@@ -321,13 +333,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendDraft: (text, extra) => {
     const ws = get().ws;
     if (ws?.readyState === WebSocket.OPEN) {
+      const attachment_url = sanitizeAttachment(extra?.attachment_url);
+      // Drop unsafe attachment but still send text if present.
+      if (extra?.attachment_url && !attachment_url && !text?.trim()) return;
       ws.send(JSON.stringify({
         type: 'send_draft',
         text,
         reply_to_id: extra?.reply_to_id,
-        attachment_url: extra?.attachment_url,
-        attachment_name: extra?.attachment_name,
-        attachment_size: extra?.attachment_size,
+        attachment_url,
+        attachment_name: attachment_url ? extra?.attachment_name : undefined,
+        attachment_size: attachment_url ? extra?.attachment_size : undefined,
         message_type: extra?.message_type ?? 'text',
       }));
       set({ replyTo: null });
@@ -346,13 +361,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // so receivers always get their Settings default language + footnotes.
     const ws = get().ws;
     if (ws?.readyState === WebSocket.OPEN) {
+      const attachment_url = sanitizeAttachment(extra?.attachment_url);
+      if (extra?.attachment_url && !attachment_url && !text?.trim()) return;
       ws.send(JSON.stringify({
         type: 'send_draft',
         text,
         reply_to_id: extra?.reply_to_id,
-        attachment_url: extra?.attachment_url,
-        attachment_name: extra?.attachment_name,
-        attachment_size: extra?.attachment_size,
+        attachment_url,
+        attachment_name: attachment_url ? extra?.attachment_name : undefined,
+        attachment_size: attachment_url ? extra?.attachment_size : undefined,
         message_type: extra?.message_type ?? 'text',
       }));
       set({ replyTo: null });
@@ -360,6 +377,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendTyping: (isTyping) => {
+    // Hidden presence → no typing broadcasts either (they reveal activity).
+    if (useAuthStore.getState().user?.show_online === false) return;
     const ws = get().ws;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'typing', is_typing: isTyping }));
@@ -367,6 +386,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendReadAck: (messageId) => {
+    // Read receipts off → never tell senders you read (stays single tick for them).
+    if (useAuthStore.getState().user?.read_receipts === false) return;
     const ws = get().ws;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'read_ack', message_id: messageId }));

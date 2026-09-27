@@ -206,6 +206,12 @@ public class AuthService {
         if (request.getPhone() != null) {
             managedUser.setPhone(request.getPhone().trim());
         }
+        if (request.getShowOnline() != null) {
+            managedUser.setShowOnline(request.getShowOnline());
+        }
+        if (request.getReadReceipts() != null) {
+            managedUser.setReadReceipts(request.getReadReceipts());
+        }
 
         managedUser = userRepository.save(managedUser);
         return toUserResponse(managedUser);
@@ -226,7 +232,7 @@ public class AuthService {
         if (user == null) {
             return null;
         }
-        return UserResponse.builder()
+        UserResponse res = UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .username(user.getUsername() != null ? user.getUsername() : user.getEmail().split("@")[0])
@@ -235,5 +241,8 @@ public class AuthService {
                 .phone(user.getPhone())
                 .preferredLanguage(user.getPreferredLanguage())
                 .build();
+        res.setShowOnline(user.getShowOnline());
+        res.setReadReceipts(user.getReadReceipts());
+        return res;
     }
 }

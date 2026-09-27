@@ -108,8 +108,8 @@ export async function updatePreferredLanguage(token: string, preferred_language:
   });
 }
 
-/** Update user profile (username, avatar, about, phone) */
-export async function updateProfile(token: string, profile: { username?: string; avatar_url?: string; about?: string; phone?: string }) {
+/** Update user profile (username, avatar, about, phone, privacy prefs) */
+export async function updateProfile(token: string, profile: { username?: string; avatar_url?: string; about?: string; phone?: string; show_online?: boolean; read_receipts?: boolean }) {
   return apiFetch('/users/profile', {
     method: 'PATCH',
     headers: {

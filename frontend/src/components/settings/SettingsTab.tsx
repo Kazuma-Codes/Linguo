@@ -14,6 +14,9 @@ interface SettingsTabProps {
   onReplaySkeletons?: () => void;
   onResetDemoData?: () => void;
   availableLanguages?: LanguageOption[];
+  showOnline: boolean;
+  readReceipts: boolean;
+  onUpdatePrivacy: (patch: { show_online?: boolean; read_receipts?: boolean }) => void;
 }
 
 export function SettingsTab({
@@ -26,9 +29,13 @@ export function SettingsTab({
   onReplaySkeletons,
   onResetDemoData,
   availableLanguages = SUPPORTED_LANGUAGES,
+  showOnline,
+  readReceipts,
+  onUpdatePrivacy,
 }: SettingsTabProps) {
   const [simulatedError, setSimulatedError] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [privacyExpanded, setPrivacyExpanded] = useState(false);
   const [notificationsOn, setNotificationsOn] = useState(true);
   const [enterToSend, setEnterToSend] = useState(true);
 
@@ -130,18 +137,56 @@ export function SettingsTab({
               </div>
             </button>
 
-            {/* Privacy */}
-            <div className="px-5 py-4 flex items-center justify-between hover:bg-[var(--bg-subtle)] transition-colors text-left group">
-              <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center flex-none">
-                  <Icons.shield className="w-5 h-5" />
+            {/* Privacy — expands to working server-backed toggles */}
+            <div className="hover:bg-[var(--bg-subtle)] transition-colors text-left group">
+              <button
+                type="button"
+                onClick={() => setPrivacyExpanded((v) => !v)}
+                className="w-full px-5 py-4 flex items-center justify-between cursor-pointer text-left"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center flex-none">
+                    <Icons.shield className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-[var(--text)]">Privacy</h4>
+                    <p className="text-xs text-[var(--muted)]">
+                      {showOnline ? 'Online' : 'Hidden'} · Receipts {readReceipts ? 'on' : 'off'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-[var(--text)]">Privacy</h4>
-                  <p className="text-xs text-[var(--muted)]">Last seen, online status</p>
+                <Icons.chevR
+                  className={`w-4 h-4 text-[var(--muted)] transition-transform ${privacyExpanded ? 'rotate-90' : ''}`}
+                />
+              </button>
+              {privacyExpanded && (
+                <div className="px-5 pb-4 space-y-3">
+                  <label className="flex items-center justify-between gap-3 cursor-pointer">
+                    <span className="text-xs font-semibold text-[var(--text)]">
+                      Online presence
+                      <span className="block text-[11px] font-normal text-[var(--muted)]">Show green badge when online</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={showOnline}
+                      onChange={(e) => onUpdatePrivacy({ show_online: e.target.checked })}
+                      className="w-4 h-4 rounded text-blue-600 accent-blue-600 cursor-pointer"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 cursor-pointer">
+                    <span className="text-xs font-semibold text-[var(--text)]">
+                      Read receipts
+                      <span className="block text-[11px] font-normal text-[var(--muted)]">Off also stops sending them</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={readReceipts}
+                      onChange={(e) => onUpdatePrivacy({ read_receipts: e.target.checked })}
+                      className="w-4 h-4 rounded text-blue-600 accent-blue-600 cursor-pointer"
+                    />
+                  </label>
                 </div>
-              </div>
-              <Icons.chevR className="w-4 h-4 text-[var(--muted)]" />
+              )}
             </div>
 
             {/* Chat */}

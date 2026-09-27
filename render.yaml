@@ -5,6 +5,7 @@
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
     plan: free
+    healthCheckPath: /api/v1/health
 
     envVars:
       - key: DATABASE_URL
@@ -17,5 +18,7 @@
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 60
       - key: PORT
         value: 8000

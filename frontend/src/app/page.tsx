@@ -395,12 +395,15 @@ export default function HomePage() {
     }
   };
 
-  const handleUpdateProfile = async (profileData: { username?: string; avatar_url?: string; about?: string; phone?: string }) => {
+  const handleUpdateProfile = async (
+    profileData: { username?: string; avatar_url?: string; about?: string; phone?: string; show_online?: boolean; read_receipts?: boolean },
+    silent = false,
+  ) => {
     if (!token) return;
     try {
       const updated = await updateProfile(token, profileData);
       updateUserProfile(updated);
-      showToast('Profile updated');
+      if (!silent) showToast('Profile updated');
     } catch (err: any) {
       showToast('Failed to update profile');
     }
@@ -641,6 +644,9 @@ export default function HomePage() {
             onToggleTheme={toggleTheme}
             onLogout={() => setShowLogoutModal(true)}
             onBack={() => setActiveTab('chats')}
+            showOnline={user.show_online !== false}
+            readReceipts={user.read_receipts !== false}
+            onUpdatePrivacy={(patch) => handleUpdateProfile(patch, true)}
             onReplaySkeletons={() => {
               setIsReplayingSkeletons(true);
               setActiveTab('chats');

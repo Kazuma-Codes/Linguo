@@ -11,7 +11,10 @@ interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User;
-  onUpdateProfile: (data: { username?: string; avatar_url?: string; about?: string; phone?: string }) => void;
+  onUpdateProfile: (
+    data: { username?: string; avatar_url?: string; about?: string; phone?: string; show_online?: boolean; read_receipts?: boolean },
+    silent?: boolean,
+  ) => void;
   onUpdateLanguage: (lang: string) => void;
   availableLanguages: LanguageOption[];
   theme: string;
@@ -46,10 +49,10 @@ export function ProfileModal({
   const [phone, setPhone] = useState(user.phone || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Preferences toggles
+  // Preferences toggles (persisted to backend; default true for existing accounts)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [onlineStatusPublic, setOnlineStatusPublic] = useState(true);
-  const [readReceipts, setReadReceipts] = useState(true);
+  const [onlineStatusPublic, setOnlineStatusPublic] = useState(user.show_online !== false);
+  const [readReceipts, setReadReceipts] = useState(user.read_receipts !== false);
 
   if (!isOpen) return null;
 
@@ -124,7 +127,7 @@ export function ProfileModal({
                           avatarUrl={avatarUrl || user.avatar_url}
                           size="2xl"
                           shape="circle"
-                          online={true}
+                          online={user.show_online !== false}
                         />
                       </div>
 
@@ -444,7 +447,10 @@ export function ProfileModal({
                   <input
                     type="checkbox"
                     checked={onlineStatusPublic}
-                    onChange={(e) => setOnlineStatusPublic(e.target.checked)}
+                    onChange={(e) => {
+                      setOnlineStatusPublic(e.target.checked);
+                      onUpdateProfile({ show_online: e.target.checked }, true);
+                    }}
                     className="w-4 h-4 rounded text-blue-600 accent-blue-600 cursor-pointer"
                   />
                 </div>
@@ -457,10 +463,16 @@ export function ProfileModal({
                   <input
                     type="checkbox"
                     checked={readReceipts}
-                    onChange={(e) => setReadReceipts(e.target.checked)}
+                    onChange={(e) => {
+                      setReadReceipts(e.target.checked);
+                      onUpdateProfile({ read_receipts: e.target.checked }, true);
+                    }}
                     className="w-4 h-4 rounded text-blue-600 accent-blue-600 cursor-pointer"
                   />
                 </div>
+                <p className="text-[11px] text-[var(--muted)]">
+                  Turning read receipts off also stops sending them — others won&apos;t see when you read.
+                </p>
               </div>
             )}
           </div>

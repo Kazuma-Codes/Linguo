@@ -231,6 +231,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 if (hasText && incoming.getText().length() > 10000) {
                     throw new IllegalArgumentException("Text is too long");
                 }
+                if (hasAttachment) {
+                    validateAttachmentUrl(incoming.getAttachmentUrl());
+                }
+                if (incoming.getAttachmentSize() != null && incoming.getAttachmentSize() > 25 * 1024 * 1024) {
+                    throw new IllegalArgumentException("Attachment too large (max 25MB)");
+                }
             }
             case "confirm_draft" -> {
                 if (incoming.getId() == null || incoming.getId().isBlank()) {
@@ -246,6 +252,24 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 }
             }
             default -> throw new IllegalArgumentException("Unsupported message type");
+        }
+    }
+
+    private void validateAttachmentUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        String trimmed = url.trim();
+        if (trimmed.length() > 2048) {
+            throw new IllegalArgumentException("Attachment URL too long");
+        }
+        String lower = trimmed.toLowerCase(java.util.Locale.ROOT);
+        if (!(lower.startsWith("https://") || lower.startsWith("http://"))) {
+            throw new IllegalArgumentException("Attachment URL must use http(s)");
+        }
+        if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("file:")
+                || lower.startsWith("vbscript:") || trimmed.contains(" ")) {
+            throw new IllegalArgumentException("Attachment URL is not allowed");
         }
     }
 

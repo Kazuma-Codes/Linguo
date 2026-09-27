@@ -58,3 +58,6 @@ dist/
 .coverage
 coverage/
 .pytest_cache/
+
+# file codebase
+file by file.md

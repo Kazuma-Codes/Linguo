@@ -37,6 +37,12 @@ public class User {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "show_online", nullable = false)
+    private Boolean showOnline = true;
+
+    @Column(name = "read_receipts", nullable = false)
+    private Boolean readReceipts = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -117,6 +123,10 @@ public class User {
     public void setPhone(String phone) { this.phone = phone; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public Boolean getShowOnline() { return showOnline; }
+    public void setShowOnline(Boolean showOnline) { this.showOnline = showOnline; }
+    public Boolean getReadReceipts() { return readReceipts; }
+    public void setReadReceipts(Boolean readReceipts) { this.readReceipts = readReceipts; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public List<ChatRoom> getRoomsCreated() { return roomsCreated; }

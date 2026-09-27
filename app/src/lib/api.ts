@@ -35,7 +35,8 @@ async function apiFetch(path: string, token?: string | null, options: RequestIni
   return text ? JSON.parse(text) : null;
 }
 
-export async function login(email: string, password: string) {  const form = new URLSearchParams();
+export async function login(email: string, password: string) {
+  const form = new URLSearchParams();
   form.append('username', email);
   form.append('password', password);
   const res = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -43,7 +44,14 @@ export async function login(email: string, password: string) {  const form = new
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: form.toString(),
   });
-  if (!res.ok) throw new ApiError('Incorrect email or password', res.status);
+  if (!res.ok) {
+    let detail = 'Incorrect email or password';
+    try {
+      const body = await res.json();
+      detail = body.message ?? body.detail ?? detail;
+    } catch {}
+    throw new ApiError(detail, res.status);
+  }
   return res.json();
 }
 
@@ -64,24 +72,76 @@ export const updatePreferredLanguage = (token: string, preferred_language: strin
 
 export const updateProfile = (
   token: string,
-  profile: { username?: string; avatar_url?: string; about?: string; phone?: string },
+  profile: { username?: string; avatar_url?: string; about?: string; phone?: string; show_online?: boolean; read_receipts?: boolean },
 ) => apiFetch('/users/profile', token, { method: 'PATCH', body: JSON.stringify(profile) });
+
+export const searchUsers = (token: string, q: string) => apiFetch(`/users/search?q=${encodeURIComponent(q)}`, token);
+
+/** Fetch a single user's public details (for the profile popup). */
+export const getUserById = (token: string, userId: string) => apiFetch(`/users/${userId}`, token);
 
 export const listRooms = (token: string) => apiFetch('/rooms', token);
 export const listDiscoverableRooms = (token: string) => apiFetch('/rooms/discover', token);
-export const createRoom = (token: string, title: string, source_lang = 'en') =>
-  apiFetch('/rooms', token, { method: 'POST', body: JSON.stringify({ title, source_lang, room_type: 'group' }) });
+
+/** Create a new translation room — mirrors web createRoom(title, source, target, extra). */
+export const createRoom = (
+  token: string,
+  title: string,
+  source_lang = 'en',
+  target_lang = 'es',
+  extra?: { description?: string; avatar_url?: string; is_private?: boolean },
+) =>
+  apiFetch('/rooms', token, {
+    method: 'POST',
+    body: JSON.stringify({
+      title,
+      source_lang: source_lang || 'en',
+      target_lang: target_lang || 'es',
+      room_type: 'group',
+      description: extra?.description,
+      avatar_url: extra?.avatar_url,
+      is_private: extra?.is_private || false,
+    }),
+  });
 export const joinRoom = (token: string, roomId: string) =>
   apiFetch(`/rooms/${roomId}/join`, token, { method: 'POST' });
 export const getRoom = (token: string, roomId: string) => apiFetch(`/rooms/${roomId}`, token);
+
+/** Update group settings (creator only): title, description, avatar. Mirrors web updateRoom. */
+export const updateRoom = (
+  token: string,
+  roomId: string,
+  data: { title?: string; description?: string; avatarUrl?: string; avatar_url?: string },
+) =>
+  apiFetch(`/rooms/${roomId}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      title: data.title,
+      description: data.description,
+      avatarUrl: data.avatarUrl ?? data.avatar_url,
+      avatar_url: data.avatar_url ?? data.avatarUrl,
+    }),
+  });
+
 export const getRoomMessages = (token: string, roomId: string) => apiFetch(`/rooms/${roomId}/messages`, token);
+
+/** Fetch list of participants and their language seats in a room. */
+export const getMembers = (token: string, roomId: string) => apiFetch(`/rooms/${roomId}/members`, token);
+
 export const getOrCreateDirectRoom = (token: string, targetUserId: string) =>
   apiFetch(`/rooms/direct/${targetUserId}`, token, { method: 'POST' });
-export const searchUsers = (token: string, q: string) => apiFetch(`/users/search?q=${encodeURIComponent(q)}`, token);
+
 export const listContacts = (token: string) => apiFetch('/contacts', token).catch(() => []);
 export const listContactRequests = (token: string) => apiFetch('/contacts/requests', token).catch(() => []);
 export const addContact = (token: string, contactUserId: string) =>
   apiFetch(`/contacts/${contactUserId}`, token, { method: 'POST' });
+export const removeContact = (token: string, contactUserId: string) =>
+  apiFetch(`/contacts/${contactUserId}`, token, { method: 'DELETE' });
+export const sendContactRequest = (token: string, targetUserId: string, content?: string) =>
+  apiFetch(`/contacts/requests/${targetUserId}`, token, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
 export const acceptContactRequest = (token: string, requestId: string) =>
   apiFetch(`/contacts/requests/${requestId}/accept`, token, { method: 'POST' });
 export const declineContactRequest = (token: string, requestId: string) =>

@@ -22,16 +22,18 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
+    private final RateLimitFilter rateLimitFilter;
     private final AppProperties appProperties;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, AppProperties appProperties) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, RateLimitFilter rateLimitFilter, AppProperties appProperties) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.rateLimitFilter = rateLimitFilter;
         this.appProperties = appProperties;
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(12);
     }
 
     @Bean
@@ -46,6 +48,7 @@ public class SecurityConfig {
                                 "/",
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",
+                                "/api/v1/auth/google",
                                 "/health",
                                 "/api/v1/health",
                                 "/actuator/health",
@@ -57,6 +60,7 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new org.springframework.security.web.authentication.HttpStatusEntryPoint(org.springframework.http.HttpStatus.UNAUTHORIZED))
                 )
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -74,8 +78,9 @@ public class SecurityConfig {
                 }
             }
         }
-        // Always permit local development and Vercel deployments by default
-        configuration.addAllowedOriginPattern("https://*.vercel.app");
+        // Always permit local development by default.
+        // Production origins must be set explicitly via ALLOWED_ORIGINS —
+        // do NOT default to https://*.vercel.app with allowCredentials=true.
         configuration.addAllowedOriginPattern("http://localhost:[*]");
         configuration.addAllowedOriginPattern("http://127.0.0.1:[*]");
 

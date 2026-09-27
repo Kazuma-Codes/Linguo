@@ -161,6 +161,10 @@ public class RoomService {
         ChatRoom room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
 
+        if ("direct".equalsIgnoreCase(room.getRoomType())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Direct chats cannot be joined");
+        }
+
         if (participantRepository.existsByRoomIdAndUserId(roomId, currentUser.getId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User is already a member of this room");
         }
@@ -188,6 +192,15 @@ public class RoomService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
 
         boolean isCreator = currentUser.getId().equals(room.getCreator().getId());
+
+        // Private / direct rooms must never auto-join on read (IDOR guard).
+        // Callers must use joinRoom (explicit user action) first.
+        boolean isPrivate = Boolean.TRUE.equals(room.getIsPrivate());
+        boolean isDirect = "direct".equalsIgnoreCase(room.getRoomType());
+        boolean isMember = participantRepository.existsByRoomIdAndUserId(roomId, currentUser.getId());
+        if (!isMember && (isPrivate || isDirect) && !isCreator) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a participant of this room");
+        }
 
         ChatParticipant participant = participantRepository.findByRoomIdAndUserId(roomId, currentUser.getId())
                 .orElseGet(() -> {

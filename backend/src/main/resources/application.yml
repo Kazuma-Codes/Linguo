@@ -61,7 +61,7 @@ management:
 app:
   jwt:
     secret: ${SECRET_KEY}
-    expiration-minutes: ${ACCESS_TOKEN_EXPIRE_MINUTES:10080}
+    expiration-minutes: ${ACCESS_TOKEN_EXPIRE_MINUTES:60}
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
     android-client-id: ${GOOGLE_ANDROID_CLIENT_ID:}

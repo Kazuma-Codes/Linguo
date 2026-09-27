@@ -54,12 +54,16 @@ require guaranteed availability or strict latency objectives.
    GROQ_API_KEY          = [paste your Groq API key from Step 1]
    SECRET_KEY            = [generate a random 32+ char string]
    ALLOWED_ORIGINS       = https://linguo-frontend.vercel.app,http://localhost:3000
+   ACCESS_TOKEN_EXPIRE_MINUTES = 60
    ```
 5. Click "Create Web Service"
 
-The repository-root `render.yaml` uses `backend/Dockerfile` with the repository
-root as its Docker context. If configuring the service manually, use the same
-Dockerfile and context so the build remains consistent with CI.
+The `render.yaml` uses `backend/Dockerfile` with `backend` as its Docker context
+(canonical build; CI uses `docker build --file backend/Dockerfile backend`).
+A legacy root `Dockerfile` with identical runtime hardening is kept for manual
+builds only — do not mix contexts. If configuring the service manually, use
+`backend/Dockerfile` + `backend` context so the build stays consistent with CI.
+Health check path is `/api/v1/health`.
 
 ---
 

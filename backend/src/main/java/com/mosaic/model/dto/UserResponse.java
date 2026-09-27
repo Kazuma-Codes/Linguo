@@ -19,6 +19,12 @@ public class UserResponse {
     @JsonProperty("preferred_language")
     private String preferredLanguage;
 
+    @JsonProperty("show_online")
+    private Boolean showOnline;
+
+    @JsonProperty("read_receipts")
+    private Boolean readReceipts;
+
     public UserResponse() {}
 
     public UserResponse(UUID id, String email, String username, String avatarUrl, String about, String phone, String preferredLanguage) {
@@ -66,4 +72,8 @@ public class UserResponse {
     public void setPhone(String phone) { this.phone = phone; }
     public String getPreferredLanguage() { return preferredLanguage; }
     public void setPreferredLanguage(String preferredLanguage) { this.preferredLanguage = preferredLanguage; }
+    public Boolean getShowOnline() { return showOnline; }
+    public void setShowOnline(Boolean showOnline) { this.showOnline = showOnline; }
+    public Boolean getReadReceipts() { return readReceipts; }
+    public void setReadReceipts(Boolean readReceipts) { this.readReceipts = readReceipts; }
 }

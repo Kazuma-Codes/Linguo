@@ -10,6 +10,8 @@ export interface AuthUser {
   about?: string;
   phone?: string;
   preferred_language?: string;
+  show_online?: boolean;
+  read_receipts?: boolean;
 }
 
 interface AuthState {

@@ -65,7 +65,8 @@ public class ChatService {
     @Transactional
     public void handleSendDraft(String roomIdStr, WsIncomingMessage incoming, User sender) {
         String text = incoming.getText();
-        boolean hasAttachment = incoming.getAttachmentUrl() != null && !incoming.getAttachmentUrl().isBlank();
+        String attachmentUrl = sanitizeAttachmentUrl(incoming.getAttachmentUrl());
+        boolean hasAttachment = attachmentUrl != null && !attachmentUrl.isBlank();
         if ((text == null || text.isBlank()) && !hasAttachment) {
             return;
         }
@@ -100,7 +101,7 @@ public class ChatService {
                 .status("draft")
                 .messageType(incoming.getMessageType() != null ? incoming.getMessageType() : "text")
                 .replyToId(replyTo)
-                .attachmentUrl(incoming.getAttachmentUrl())
+                .attachmentUrl(attachmentUrl)
                 .attachmentName(incoming.getAttachmentName())
                 .attachmentSize(incoming.getAttachmentSize())
                 .deliveryStatus("sent")
@@ -158,6 +159,17 @@ public class ChatService {
         return text.codePoints().anyMatch(Character::isLetter);
     }
 
+    /** Server-side allowlist: only http(s) attachment URLs, max 2048 chars. */
+    private String sanitizeAttachmentUrl(String url) {
+        if (url == null || url.isBlank()) return null;
+        String trimmed = url.trim();
+        if (trimmed.length() > 2048) return null;
+        String lower = trimmed.toLowerCase(java.util.Locale.ROOT);
+        if (!(lower.startsWith("https://") || lower.startsWith("http://"))) return null;
+        if (trimmed.contains(" ")) return null;
+        return trimmed;
+    }
+
     /**
      * Instant-finalize path for language-neutral content (files, photos,
      * emoji-only reactions): no Groq call, no cache write, no footnotes.
@@ -181,7 +193,7 @@ public class ChatService {
                 .status("final")
                 .messageType(incoming.getMessageType() != null ? incoming.getMessageType() : "text")
                 .replyToId(replyTo)
-                .attachmentUrl(incoming.getAttachmentUrl())
+                .attachmentUrl(sanitizeAttachmentUrl(incoming.getAttachmentUrl()))
                 .attachmentName(incoming.getAttachmentName())
                 .attachmentSize(incoming.getAttachmentSize())
                 .deliveryStatus("delivered")

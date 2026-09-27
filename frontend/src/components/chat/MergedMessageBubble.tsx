@@ -25,6 +25,20 @@ function formatTime(timestamp?: number | string) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/** Allowlist for user-supplied attachment URLs: http(s) only, no spaces. */
+function isSafeHttpUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (trimmed.length === 0 || trimmed.length > 2048 || trimmed.includes(' ')) return false;
+  const lower = trimmed.toLowerCase();
+  return lower.startsWith('https://') || lower.startsWith('http://');
+}
+
+function openAttachmentSafely(url?: string | null) {
+  if (!isSafeHttpUrl(url)) return;
+  window.open(url as string, '_blank', 'noopener,noreferrer');
+}
+
 export function MergedMessageBubble({
   message: m,
   allMessages = [],
@@ -187,8 +201,8 @@ export function MergedMessageBubble({
             </div>
           )}
 
-          {/* Attachment Preview */}
-          {m.attachment_url && (
+          {/* Attachment Preview (http(s) allowlist only) */}
+          {m.attachment_url && isSafeHttpUrl(m.attachment_url) && (
             <div className="mb-2">
               {m.message_type === 'image' || m.attachment_url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -196,13 +210,13 @@ export function MergedMessageBubble({
                   src={m.attachment_url}
                   alt={m.attachment_name || 'Attachment'}
                   className="max-h-60 rounded-xl object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                  onClick={() => window.open(m.attachment_url || '', '_blank')}
+                  onClick={() => openAttachmentSafely(m.attachment_url)}
                 />
               ) : (
                 <a
                   href={m.attachment_url}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="flex items-center gap-2 p-2.5 rounded-xl bg-black/10 dark:bg-black/25 hover:bg-black/15 transition-colors"
                 >
                   <Icons.clip className="w-4 h-4 flex-none" />

@@ -1,10 +1,8 @@
-import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'react-native';
-
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -22,6 +20,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useThemeStore } from '@/store/useThemeStore';
 import { Colors } from '@/constants/theme';
 import {
   acceptContactRequest,
@@ -43,33 +42,35 @@ import {
   updateProfile,
 } from '@/lib/api';
 import { LANGUAGE_MAP, SUPPORTED_LANGUAGES } from '@/lib/languages';
-import { API_BASE_URL } from '@/lib/config';
+import { AVATAR_PRESETS } from '@/lib/avatarPresets';
+import { MergedAvatar } from '@/components/MergedAvatar';
+import { Toast } from '@/components/Toast';
+import { LogoutConfirmModal } from '@/components/LogoutConfirmModal';
+import { AddContactModal } from '@/components/AddContactModal';
+import { CreateGroupModal } from '@/components/CreateGroupModal';
+import { EditAvatarModal } from '@/components/EditAvatarModal';
+import { UserDetailPopup, } from '@/components/UserDetailPopup';
+import { SearchOverlay, SearchItem } from '@/components/SearchOverlay';
 
 type Tab = 'chats' | 'contacts' | 'groups' | 'settings' | 'profile';
 type C = (typeof Colors)[keyof typeof Colors];
 
 WebBrowser.maybeCompleteAuthSession();
 
-const AVATAR_COLORS = ['#3b82f6', '#ec4899', '#6C5CE7', '#10b981', '#f59e0b', '#ef4444'];
-
-function avatarColor(name: string) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-
-function RoomAvatar({ title, size = 44 }: { title: string; size?: number }) {
-  const bg = avatarColor(title);
-  return (
-    <View style={[styles.avatar, { backgroundColor: bg, width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={[styles.avatarText, { fontSize: size * 0.42 }]}>{title.charAt(0).toUpperCase()}</Text>
-    </View>
-  );
+function extractRoomId(input: string): string | null {
+  if (!input) return null;
+  const m = input.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  return m ? m[0] : null;
 }
 
 export default function Home() {
   const { token, user, setAuth, setLang, updateUser, logout, hasHydrated } = useAuthStore();
-  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const systemScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const themeMode = useThemeStore((s) => s.mode);
+  const resolved = useThemeStore((s) => s.resolved);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const hydrateTheme = useThemeStore((s) => s.hydrate);
+  const scheme = resolved;
   const c = Colors[scheme];
   const s = makeStyles(c);
 
@@ -77,23 +78,29 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [rooms, setRooms] = useState<any[]>([]);
   const [discover, setDiscover] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
-  const [roomTitle, setRoomTitle] = useState('');
   const [search, setSearch] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [contactResults, setContactResults] = useState<any[]>([]);
   const [contactSearching, setContactSearching] = useState(false);
+  const [contactsSub, setContactsSub] = useState<'all' | 'requests'>('all');
+  const [groupsSub, setGroupsSub] = useState<'joined' | 'discover'>('joined');
 
   // Settings tab state (mirrors web SettingsTab)
   const [notificationsOn, setNotificationsOn] = useState(true);
   const [enterToSend, setEnterToSend] = useState(true);
   const [demoMsg, setDemoMsg] = useState('');
+  const [simulatedError, setSimulatedError] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [privacyExpanded, setPrivacyExpanded] = useState(false);
+  const [isReplayingSkeletons, setIsReplayingSkeletons] = useState(false);
 
   // Profile tab state (mirrors web ProfileModal)
   const [profileSub, setProfileSub] = useState<'main' | 'edit' | 'security' | 'notifications' | 'privacy'>('main');
@@ -102,24 +109,47 @@ export default function Home() {
   const [editPhone, setEditPhone] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [saveTick, setSaveTick] = useState('');
-  const [onlinePublic, setOnlinePublic] = useState(true);
-  const [readReceipts, setReadReceipts] = useState(true);
+
+  // Modals & overlays (mirrors web page.tsx)
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [showLogout, setShowLogout] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   const myLang = user?.preferred_language || 'en';
   const myName = user?.username || user?.email?.split('@')[0] || 'T';
+  const userAvatar =
+    user?.avatar_url ||
+    (user?.username?.toLowerCase().includes('kazuma') || user?.email?.toLowerCase().includes('kazuma')
+      ? AVATAR_PRESETS[0].dataUri
+      : undefined);
 
-  // Google Sign-In: PKCE code flow in dev/production builds.
-  // NOTE: OAuth does NOT work in Expo Go (no custom scheme) — use a dev build:
-  //   npx expo run:android   (or EAS: eas build --profile development)
-  // Google Cloud needs an Android OAuth client (package com.mosaic.chat + your
-  // key SHA-1) and the IDs below in EXPO_PUBLIC_GOOGLE_*.
+  const showToast = (msg: string) => setToastMsg(msg);
+
+  useEffect(() => {
+    hydrateTheme(systemScheme);
+  }, []);
+
+  useEffect(() => {
+    if (themeMode === 'system') {
+      useThemeStore.setState({ resolved: systemScheme });
+    }
+  }, [systemScheme]);
+
   const googleIdConfigured = !!(
     process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
   );
+  // NOTE: hook must always run, but crashes on web when webClientId is
+  // undefined. Pass a dummy so web (`expo start --web`) renders; the Google
+  // button stays hidden via `googleIdConfigured` until real IDs are set.
   const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || 'missing-android-client-id',
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || 'missing-ios-client-id',
+    webClientId:
+      process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || 'missing-web-client-id.apps.googleusercontent.com',
     scopes: ['openid', 'profile', 'email'],
   });
 
@@ -132,10 +162,8 @@ export default function Home() {
       setLoading(true);
       try {
         let idToken = (googleResponse.params as any)?.id_token as string | undefined;
-        // Native PKCE flow returns a code — exchange it (no client secret needed
-        // for installed apps) to obtain the ID token our backend verifies.
         if (!idToken && googleResponse.params.code && googleRequest?.codeVerifier) {
-          const clientId =
+          const cid =
             Platform.OS === 'android'
               ? process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
               : Platform.OS === 'ios'
@@ -143,7 +171,7 @@ export default function Home() {
                 : process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
           const exchanged: any = await AuthSession.exchangeCodeAsync(
             {
-              clientId: clientId || '',
+              clientId: cid || '',
               redirectUri: googleRequest.redirectUri,
               code: googleResponse.params.code,
               extraParams: { code_verifier: googleRequest.codeVerifier },
@@ -161,8 +189,13 @@ export default function Home() {
           email: me.email,
           username: me.username,
           avatar_url: me.avatar_url,
+          about: me.about,
+          phone: me.phone,
           preferred_language: me.preferred_language || me.preferredLanguage || 'en',
+          show_online: me.show_online,
+          read_receipts: me.read_receipts,
         });
+        showToast('✨ Welcome to Linguo!');
       } catch (e: any) {
         setError(e.message || 'Google sign-in failed');
       } finally {
@@ -180,7 +213,8 @@ export default function Home() {
         listContacts(token),
         listContactRequests(token),
       ]);
-      setRooms(Array.isArray(r) ? r : []);
+      const rList = Array.isArray(r) ? r : (r as any)?.rooms ?? [];
+      setRooms(rList);
       setDiscover(Array.isArray(d) ? d : []);
       setContacts(Array.isArray(ct) ? ct : []);
       setRequests(Array.isArray(rq) ? rq : []);
@@ -191,14 +225,20 @@ export default function Home() {
     if (token) load();
   }, [token]);
 
-  // Refresh friends every time the Contacts tab opens (added on web/another
-  // device show up immediately instead of staying stale from login time).
   useEffect(() => {
     if (token && tab === 'contacts') load();
   }, [tab]);
 
   async function handleAuth() {
     setError('');
+    if (!email.trim() || !password) {
+      setError('Email and password are required.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
     setLoading(true);
     try {
       if (isLogin) {
@@ -209,31 +249,52 @@ export default function Home() {
           id: me.id,
           email: me.email,
           username: me.username,
+          avatar_url: me.avatar_url,
+          about: me.about,
+          phone: me.phone,
           preferred_language: me.preferred_language || me.preferredLanguage || 'en',
+          show_online: me.show_online,
+          read_receipts: me.read_receipts,
         });
       } else {
         await register(email.trim(), password, 'en');
         const t = await login(email.trim(), password);
         const access = t.access_token || t.accessToken;
         const me = await getMe(access);
-        await setAuth(access, { id: me.id, email: me.email, username: me.username, preferred_language: 'en' });
+        await setAuth(access, {
+          id: me.id,
+          email: me.email,
+          username: me.username,
+          avatar_url: me.avatar_url,
+          about: me.about,
+          phone: me.phone,
+          preferred_language: 'en',
+        });
       }
+      setEmail('');
+      setPassword('');
+      showToast('✨ Welcome to Linguo!');
     } catch (e: any) {
-      setError(e.message || 'Auth failed');
+      setError(e.message || 'Authentication failed. Please check credentials.');
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleCreateRoom() {
-    if (!token || !roomTitle.trim()) return;
+  async function handleCreateGroup(data: { title: string; description: string; is_private: boolean }) {
+    if (!token) return;
     try {
-      const room = await createRoom(token, roomTitle.trim(), myLang);
-      setRoomTitle('');
+      const room = await createRoom(token, data.title, myLang, 'es', {
+        description: data.description,
+        is_private: data.is_private,
+      });
       await load();
+      showToast(`✨ Group "${data.title}" created`);
+      setTab('chats');
       router.push(`/chat/${room.id}` as any);
     } catch (e: any) {
       setError(e.message);
+      showToast(e.message || 'Failed to create group');
     }
   }
 
@@ -242,25 +303,30 @@ export default function Home() {
     try {
       await joinRoom(token, id);
       await load();
+      showToast('🔗 Joined group community');
       router.push(`/chat/${id}` as any);
     } catch (e: any) {
-      setError(e.message);
+      if (/already|conflict/i.test(e.message || '')) {
+        router.push(`/chat/${id}` as any);
+      } else {
+        setError(e.message);
+        showToast(e.message || 'Failed to join group');
+      }
     }
   }
 
-  /** Join by pasted invite link or raw room code. */
   async function handleJoinByCode() {
     if (!token || !inviteCode.trim()) return;
-    const m = inviteCode.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
-    if (!m) {
-      setError('That doesn’t look like an invite link or room code');
+    const id = extractRoomId(inviteCode);
+    if (!id) {
+      showToast('That doesn’t look like an invite link or room code');
       return;
     }
-    const id = m[0];
     try {
       await joinRoom(token, id);
       await load();
       setInviteCode('');
+      showToast('🔗 Joined group');
       router.push(`/chat/${id}` as any);
     } catch (e: any) {
       if (/already|conflict/i.test(e.message || '')) {
@@ -268,6 +334,7 @@ export default function Home() {
         router.push(`/chat/${id}` as any);
       } else {
         setError(e.message);
+        showToast(e.message || 'Failed to join group');
       }
     }
   }
@@ -277,6 +344,22 @@ export default function Home() {
     try {
       await updatePreferredLanguage(token, code);
       setLang(code);
+      showToast(`Language set to ${LANGUAGE_MAP[code] || code}`);
+    } catch (e: any) {
+      setError(e.message);
+      showToast('Failed to update language');
+    }
+  }
+
+  async function handlePrivacyChange(patch: { show_online?: boolean; read_receipts?: boolean }) {
+    if (!token) return;
+    updateUser(patch);
+    try {
+      const updated = await updateProfile(token, patch);
+      updateUser({
+        show_online: updated.show_online ?? patch.show_online,
+        read_receipts: updated.read_receipts ?? patch.read_receipts,
+      });
     } catch (e: any) {
       setError(e.message);
     }
@@ -288,6 +371,7 @@ export default function Home() {
       if (accept) await acceptContactRequest(token, id);
       else await declineContactRequest(token, id);
       await load();
+      showToast(accept ? '🤝 Connection request accepted' : 'Request declined');
     } catch (e: any) {
       setError(e.message);
     }
@@ -316,8 +400,10 @@ export default function Home() {
       setContactSearch('');
       setContactResults([]);
       await load();
+      showToast('👥 Contact added');
     } catch (e: any) {
       setError(e.message);
+      showToast(e.message || 'Failed to add contact');
     }
   }
 
@@ -330,9 +416,12 @@ export default function Home() {
       }
       const room = await getOrCreateDirectRoom(token, friendUserId);
       await load();
+      setSelectedUserId(null);
+      setTab('chats');
       router.push(`/chat/${room.id}` as any);
     } catch (e: any) {
       setError(e.message);
+      showToast(e.message || 'Failed to open direct chat');
     }
   }
 
@@ -343,35 +432,21 @@ export default function Home() {
     setSaveTick('');
     setProfileSub('edit');
   }
-async function handleChangePhoto() {
-  if (!token) return;
-  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!perm.granted) {
-    setSaveTick('Photo permission denied — allow it in system settings.');
-    return;
+
+  async function handleSaveAvatarDirect(newUrl: string) {
+    if (!token) return;
+    updateUser({ avatar_url: newUrl });
+    try {
+      const updated = await updateProfile(token, { avatar_url: newUrl });
+      updateUser({ avatar_url: updated.avatar_url ?? newUrl });
+      setSaveTick('Photo updated ✓');
+      showToast('Profile updated');
+    } catch (e: any) {
+      setSaveTick(e.message || 'Photo upload failed');
+      showToast('Failed to update profile');
+    }
   }
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    allowsEditing: true,   // square crop, same on every device
-    aspect: [1, 1],
-    quality: 0.5,          // keeps the base64 small (~100–200KB)
-    base64: true,
-  });
-  if (result.canceled || !result.assets?.[0]?.base64) return;
-  const asset = result.assets[0];
-  const mime = asset.mimeType || 'image/jpeg';
-  const dataUrl = `data:${mime};base64,${asset.base64}`;
-  setSavingProfile(true);
-  try {
-    const updated = await updateProfile(token, { avatar_url: dataUrl });
-    updateUser({ avatar_url: updated.avatar_url ?? dataUrl });
-    setSaveTick('Photo updated ✓');
-  } catch (e: any) {
-    setSaveTick(e.message || 'Photo upload failed');
-  } finally {
-    setSavingProfile(false);
-  }
-}
+
   async function handleSaveProfile() {
     if (!token) return;
     setSavingProfile(true);
@@ -387,6 +462,7 @@ async function handleChangePhoto() {
         phone: updated.phone ?? editPhone.trim(),
       });
       setSaveTick('Saved ✓');
+      showToast('Profile updated');
       setTimeout(() => setProfileSub('main'), 900);
     } catch (e: any) {
       setSaveTick(e.message || 'Save failed');
@@ -397,8 +473,9 @@ async function handleChangePhoto() {
 
   if (!hasHydrated) {
     return (
-      <SafeAreaView style={[styles.center, { backgroundColor: c.background }]}>
+      <SafeAreaView style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, { backgroundColor: c.background }]}>
         <ActivityIndicator color={c.primary} />
+        <Text style={{ color: c.textSecondary, marginTop: 8 }}>Loading Linguo...</Text>
       </SafeAreaView>
     );
   }
@@ -406,32 +483,54 @@ async function handleChangePhoto() {
   if (!token || !user) {
     return (
       <SafeAreaView style={s.authWrap}>
+        <Pressable style={s.themeFab} onPress={toggleTheme} accessibilityLabel="Toggle theme">
+          <Ionicons name={scheme === 'dark' ? 'sunny-outline' : 'moon-outline'} size={18} color={c.text} />
+        </Pressable>
         <Text style={s.brand}>
           halo<Text style={{ color: c.primary }}>.</Text>
         </Text>
         <Text style={s.sub}>Omni-language chat</Text>
+        <View style={[s.quoteCard, { backgroundColor: c.card, borderColor: c.border }]}>
+          <Text style={[s.quote, { color: c.text }]}>
+            “One language sets you in a corridor for life. Two languages open every door along the way.”
+          </Text>
+          <Text style={[s.quoteBy, { color: c.textSecondary }]}>— THE MOSAIC COMMUNITY · 48 LANGUAGES</Text>
+        </View>
+        <Text style={s.fieldLabel}>Email</Text>
         <TextInput
           style={s.input}
-          placeholder="Email"
+          placeholder="you@mosaic.app"
           placeholderTextColor={c.textSecondary}
           autoCapitalize="none"
+          keyboardType="email-address"
           value={email}
           onChangeText={setEmail}
         />
-        <TextInput
-          style={s.input}
-          placeholder="Password"
-          placeholderTextColor={c.textSecondary}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        {!!error && <Text style={s.error}>{error}</Text>}
-        <Pressable style={s.primary} onPress={handleAuth} disabled={loading}>
-          <Text style={s.primaryText}>{loading ? 'Please wait…' : isLogin ? 'Log in' : 'Sign up'}</Text>
+        <Text style={s.fieldLabel}>Password</Text>
+        <View style={s.passRow}>
+          <TextInput
+            style={[s.input, { flex: 1 }]}
+            placeholder="••••••••"
+            placeholderTextColor={c.textSecondary}
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+            onSubmitEditing={handleAuth}
+          />
+          <Pressable style={s.eye} onPress={() => setShowPassword((v) => !v)}>
+            <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={c.textSecondary} />
+          </Pressable>
+        </View>
+        {!!error && (
+          <View style={s.errorBanner}>
+            <Text style={s.errorText}>⚠️ {error}</Text>
+          </View>
+        )}
+        <Pressable style={[s.primary, { opacity: loading ? 0.6 : 1 }]} onPress={handleAuth} disabled={loading}>
+          <Text style={s.primaryText}>{loading ? 'Processing…' : isLogin ? 'Sign In' : 'Sign Up'}</Text>
         </Pressable>
         <Pressable onPress={() => setIsLogin((v) => !v)}>
-          <Text style={s.link}>{isLogin ? 'Need an account? Sign up' : 'Have an account? Log in'}</Text>
+          <Text style={s.link}>{isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign In'}</Text>
         </Pressable>
         {googleIdConfigured && (
           <>
@@ -440,21 +539,42 @@ async function handleChangePhoto() {
               <Text style={s.sub}>or</Text>
               <View style={s.orLine} />
             </View>
-            <Pressable
-              style={s.googleBtn}
-              onPress={() => googlePromptAsync()}
-              disabled={!googleRequest || loading}
-            >
+            <Pressable style={s.googleBtn} onPress={() => googlePromptAsync()} disabled={!googleRequest || loading}>
               <Ionicons name="logo-google" size={18} color="#DB4437" />
               <Text style={s.googleBtnText}>Continue with Google</Text>
             </Pressable>
           </>
         )}
+        <Toast message={toastMsg} onHide={() => setToastMsg(null)} />
       </SafeAreaView>
     );
   }
 
   const filteredRooms = rooms.filter((r) => (r.title || '').toLowerCase().includes(search.toLowerCase()));
+  const filteredContacts = contacts.filter((ct: any) => {
+    const q = search.toLowerCase();
+    return (ct.email || '').toLowerCase().includes(q) || (ct.username || '').toLowerCase().includes(q);
+  });
+  const myGroups = rooms.filter((r) => r.room_type === 'group');
+  const filteredMyGroups = myGroups.filter((r) => (r.title || '').toLowerCase().includes(search.toLowerCase()));
+  const filteredDiscover = discover.filter((r) => (r.title || '').toLowerCase().includes(search.toLowerCase()));
+
+  const searchItems: SearchItem[] = [
+    ...rooms.map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      subtitle: r.room_type === 'direct' ? 'Direct Message' : 'Group Room',
+      avatarUrl: r.avatar_url,
+      type: 'room' as const,
+    })),
+    ...contacts.map((ct: any) => ({
+      id: String(ct.user_id || ct.id),
+      title: ct.username || (ct.email || '').split('@')[0],
+      subtitle: ct.about || ct.email,
+      avatarUrl: ct.avatar_url,
+      type: 'contact' as const,
+    })),
+  ];
 
   const tabs: Array<{ key: Tab; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
     { key: 'chats', label: 'Chats', icon: 'chatbubble-outline' },
@@ -471,7 +591,10 @@ async function handleChangePhoto() {
             <View style={s.headerRow}>
               <Text style={s.headerTitle}>Chats</Text>
               <View style={s.headerActions}>
-                <Pressable style={s.iconBtn} onPress={handleCreateRoom} accessibilityLabel="New group">
+                <Pressable style={s.iconBtn} onPress={() => setShowSearch(true)} accessibilityLabel="Global search">
+                  <Ionicons name="search-outline" size={18} color={c.textSecondary} />
+                </Pressable>
+                <Pressable style={s.iconBtn} onPress={() => setShowCreateGroup(true)} accessibilityLabel="New group">
                   <Ionicons name="add" size={20} color={c.textSecondary} />
                 </Pressable>
                 <Pressable style={s.iconBtnPrimary} onPress={() => setTab('contacts')} accessibilityLabel="Add contact">
@@ -490,38 +613,87 @@ async function handleChangePhoto() {
               />
             </View>
             {!!error && <Text style={s.error}>{error}</Text>}
-            <FlatList
-              data={filteredRooms}
-              keyExtractor={(r) => r.id}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <Pressable style={s.row} onPress={() => router.push(`/chat/${item.id}` as any)}>
-                  <RoomAvatar title={item.title || '?'} />
-                  <View style={s.rowText}>
-                    <View style={s.rowTitleRow}>
-                      <Text style={s.rowTitle} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      {item.room_type === 'group' && (
-                        <View style={s.groupBadge}>
-                          <Text style={s.groupBadgeText}>GROUP</Text>
-                        </View>
-                      )}
+            {isReplayingSkeletons ? (
+              <View style={{ gap: 8, paddingTop: 8 }}>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <View key={i} style={[s.skelRow, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                    <View style={[s.skelAvatar, { backgroundColor: c.border }]} />
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <View style={[s.skelLine, { backgroundColor: c.border, width: '40%' }]} />
+                      <View style={[s.skelLineThin, { backgroundColor: c.border, width: '70%' }]} />
                     </View>
-                    <Text style={s.rowSub} numberOfLines={1}>
-                      {item.last_message || 'No messages yet'}
-                    </Text>
                   </View>
-                </Pressable>
-              )}
-              ListEmptyComponent={<Text style={s.empty}>No conversations yet</Text>}
-            />
+                ))}
+              </View>
+            ) : (
+              <FlatList
+                data={filteredRooms}
+                keyExtractor={(r) => r.id}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <Pressable style={s.row} onPress={() => router.push(`/chat/${item.id}` as any)}>
+                    <MergedAvatar name={item.title || '?'} avatarUrl={item.avatar_url} size="md" />
+                    <View style={s.rowText}>
+                      <View style={s.rowTitleRow}>
+                        <Text style={s.rowTitle} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        {item.room_type === 'group' && (
+                          <View style={s.groupBadge}>
+                            <Text style={s.groupBadgeText}>GROUP</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={s.rowSub} numberOfLines={1}>
+                        {item.last_message || item.description || 'Omni-language chat room'}
+                      </Text>
+                    </View>
+                    {item.unread_count > 0 && (
+                      <View style={s.unread}>
+                        <Text style={s.unreadText}>{item.unread_count}</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                )}
+                ListEmptyComponent={
+                  <View style={s.emptyWrap}>
+                    <Text style={s.emptyEmoji}>💬</Text>
+                    <Text style={[s.emptyTitle, { color: c.text }]}>No conversations yet</Text>
+                    <Pressable onPress={() => setShowCreateGroup(true)}>
+                      <Text style={[s.emptyLink, { color: c.primary }]}>+ Create a translation group</Text>
+                    </Pressable>
+                  </View>
+                }
+              />
+            )}
           </>
         )}
 
         {tab === 'contacts' && (
           <>
             <Text style={s.headerTitle}>Contacts</Text>
+            <View style={s.subTabs}>
+              <Pressable
+                style={[s.subTab, contactsSub === 'all' && { backgroundColor: c.card }]}
+                onPress={() => setContactsSub('all')}
+              >
+                <Text style={[s.subTabText, { color: contactsSub === 'all' ? c.text : c.textSecondary }]}>
+                  All Contacts ({contacts.length})
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[s.subTab, contactsSub === 'requests' && { backgroundColor: c.card }]}
+                onPress={() => setContactsSub('requests')}
+              >
+                <Text style={[s.subTabText, { color: contactsSub === 'requests' ? c.text : c.textSecondary }]}>
+                  Requests{requests.length > 0 ? ` (${requests.length})` : ''}
+                </Text>
+                {requests.length > 0 && <View style={s.dot} />}
+              </Pressable>
+              <Pressable style={[s.miniPrimary, { marginLeft: 'auto' }]} onPress={() => setShowAddContact(true)}>
+                <Text style={s.miniPrimaryText}>+ Add</Text>
+              </Pressable>
+            </View>
             <View style={s.searchPill}>
               <Ionicons name="search-outline" size={15} color={c.textSecondary} />
               <TextInput
@@ -544,7 +716,7 @@ async function handleChangePhoto() {
                   const already = contacts.some((ct: any) => (ct.user_id || ct.id) === (u.id || u.user_id));
                   return (
                     <View key={u.id || u.user_id} style={s.row}>
-                      <RoomAvatar title={u.username || u.email || '?'} />
+                      <MergedAvatar name={u.username || u.email || '?'} avatarUrl={u.avatar_url} size="md" />
                       <View style={s.rowText}>
                         <Text style={s.rowTitle}>{u.username || u.email?.split('@')[0]}</Text>
                         <Text style={s.rowSub} numberOfLines={1}>
@@ -561,54 +733,106 @@ async function handleChangePhoto() {
                 })}
               </>
             )}
-            {requests.length > 0 && (
-              <>
-                <Text style={s.sectionLabel}>Requests</Text>
-                {requests.map((rq: any) => (
-                  <View key={rq.id} style={s.row}>
-                    <RoomAvatar title={rq.from_username || rq.from_email || '?'} />
-                    <View style={s.rowText}>
-                      <Text style={s.rowTitle}>{rq.from_username || rq.from_email}</Text>
-                      <View style={s.reqRow}>
-                        <Pressable style={s.miniPrimary} onPress={() => handleRequest(rq.id, true)}>
-                          <Text style={s.miniPrimaryText}>Accept</Text>
-                        </Pressable>
-                        <Pressable style={s.miniGhost} onPress={() => handleRequest(rq.id, false)}>
-                          <Text style={[s.miniGhostText, { color: c.textSecondary }]}>Decline</Text>
-                        </Pressable>
+            {contactsSub === 'requests' ? (
+              requests.length === 0 ? (
+                <Text style={s.empty}>💌 No pending contact requests</Text>
+              ) : (
+                <FlatList
+                  data={requests}
+                  keyExtractor={(rq: any) => String(rq.id)}
+                  renderItem={({ item: rq }: any) => (
+                    <View style={[s.cardRow, { backgroundColor: c.card, borderColor: c.border }]}>
+                      <MergedAvatar
+                        name={rq.from_username || rq.from_email || '?'}
+                        avatarUrl={rq.from_user_avatar_url || rq.from_avatar_url}
+                        size="md"
+                      />
+                      <View style={s.rowText}>
+                        <Text style={s.rowTitle}>{rq.from_username || rq.from_email?.split('@')[0]}</Text>
+                        <Text style={s.rowSub}>{rq.from_email}</Text>
+                        {!!rq.content && (
+                          <Text style={[s.rowSub, { fontStyle: 'italic' }]}>“{rq.content}”</Text>
+                        )}
+                        <View style={s.reqRow}>
+                          <Pressable style={s.miniPrimary} onPress={() => handleRequest(rq.id, true)}>
+                            <Text style={s.miniPrimaryText}>Accept</Text>
+                          </Pressable>
+                          <Pressable style={s.miniGhost} onPress={() => handleRequest(rq.id, false)}>
+                            <Text style={[s.miniGhostText, { color: c.textSecondary }]}>Decline</Text>
+                          </Pressable>
+                        </View>
                       </View>
                     </View>
-                  </View>
-                ))}
+                  )}
+                />
+              )
+            ) : (
+              <>
+                <Text style={s.sectionLabel}>My friends ({filteredContacts.length})</Text>
+                <FlatList
+                  data={filteredContacts}
+                  keyExtractor={(ct: any) => String(ct.user_id || ct.id)}
+                  renderItem={({ item }: any) => (
+                    <Pressable
+                      style={s.row}
+                      onPress={() => handleOpenDirectChat(String(item.user_id || item.id), item.direct_room_id)}
+                    >
+                      <MergedAvatar name={item.username || item.email || '?'} avatarUrl={item.avatar_url} size="md" />
+                      <View style={s.rowText}>
+                        <Text style={s.rowTitle}>{item.username || item.email?.split('@')[0]}</Text>
+                        <Text style={s.rowSub} numberOfLines={1}>
+                          {item.about || item.email}
+                        </Text>
+                      </View>
+                      {!!item.preferred_language && (
+                        <View style={s.langBadge}>
+                          <Text style={s.langBadgeText}>{LANGUAGE_MAP[item.preferred_language] || item.preferred_language}</Text>
+                        </View>
+                      )}
+                      <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
+                    </Pressable>
+                  )}
+                  ListEmptyComponent={<Text style={s.empty}>No friends yet — search above to add people.</Text>}
+                />
               </>
             )}
-            <Text style={s.sectionLabel}>My friends ({contacts.length})</Text>
-            <FlatList
-              data={contacts}
-              keyExtractor={(ct: any) => String(ct.user_id || ct.id)}
-              renderItem={({ item }: any) => (
-                <Pressable
-                  style={s.row}
-                  onPress={() => handleOpenDirectChat(String(item.user_id || item.id), item.direct_room_id)}
-                >
-                  <RoomAvatar title={item.username || item.email || '?'} />
-                  <View style={s.rowText}>
-                    <Text style={s.rowTitle}>{item.username || item.email?.split('@')[0]}</Text>
-                    <Text style={s.rowSub} numberOfLines={1}>
-                      {item.about || item.email}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
-                </Pressable>
-              )}
-              ListEmptyComponent={<Text style={s.empty}>No friends yet — search above to add people.</Text>}
-            />
           </>
         )}
 
         {tab === 'groups' && (
           <>
             <Text style={s.headerTitle}>Groups</Text>
+            <View style={s.subTabs}>
+              <Pressable
+                style={[s.subTab, groupsSub === 'joined' && { backgroundColor: c.card }]}
+                onPress={() => setGroupsSub('joined')}
+              >
+                <Text style={[s.subTabText, { color: groupsSub === 'joined' ? c.text : c.textSecondary }]}>
+                  My Groups ({filteredMyGroups.length})
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[s.subTab, groupsSub === 'discover' && { backgroundColor: c.card }]}
+                onPress={() => setGroupsSub('discover')}
+              >
+                <Text style={[s.subTabText, { color: groupsSub === 'discover' ? c.text : c.textSecondary }]}>
+                  Discover ({discover.length})
+                </Text>
+              </Pressable>
+              <Pressable style={[s.miniPrimary, { marginLeft: 'auto' }]} onPress={() => setShowCreateGroup(true)}>
+                <Text style={s.miniPrimaryText}>+ New</Text>
+              </Pressable>
+            </View>
+            <View style={s.searchPill}>
+              <Ionicons name="search-outline" size={15} color={c.textSecondary} />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Search group communities..."
+                placeholderTextColor={c.textSecondary}
+                value={search}
+                onChangeText={setSearch}
+              />
+            </View>
             <View style={s.joinRow}>
               <TextInput
                 style={[s.input, { flex: 1 }]}
@@ -624,25 +848,63 @@ async function handleChangePhoto() {
                 <Text style={s.miniPrimaryText}>Join</Text>
               </Pressable>
             </View>
-            <FlatList
-              data={discover}
-              keyExtractor={(r) => r.id}
-              renderItem={({ item }) => (
-                <View style={s.row}>
-                  <RoomAvatar title={item.title || '?'} />
-                  <View style={s.rowText}>
-                    <Text style={s.rowTitle}>{item.title}</Text>
-                    <Text style={s.rowSub} numberOfLines={1}>
-                      {item.description || 'Public group'}
-                    </Text>
-                  </View>
-                  <Pressable style={s.miniPrimary} onPress={() => handleJoin(item.id)}>
-                    <Text style={s.miniPrimaryText}>Join</Text>
+            {groupsSub === 'joined' ? (
+              <FlatList
+                data={filteredMyGroups}
+                keyExtractor={(r) => r.id}
+                renderItem={({ item }) => (
+                  <Pressable style={[s.cardRow, { backgroundColor: c.card, borderColor: c.border }]} onPress={() => router.push(`/chat/${item.id}` as any)}>
+                    <MergedAvatar name={item.title || '?'} avatarUrl={item.avatar_url} size="md" />
+                    <View style={s.rowText}>
+                      <View style={s.rowTitleRow}>
+                        <Text style={s.rowTitle} numberOfLines={1}>{item.title}</Text>
+                        <View style={s.omniBadge}>
+                          <Text style={s.omniText}>OMNI</Text>
+                        </View>
+                      </View>
+                      <Text style={s.rowSub} numberOfLines={1}>
+                        {item.last_message || item.description || 'Omni-language chat room'}
+                      </Text>
+                    </View>
+                    <View style={[s.miniPrimary, { backgroundColor: c.primary }]}>
+                      <Text style={s.miniPrimaryText}>Open →</Text>
+                    </View>
                   </Pressable>
-                </View>
-              )}
-              ListEmptyComponent={<Text style={s.empty}>No public groups found</Text>}
-            />
+                )}
+                ListEmptyComponent={
+                  <View style={s.emptyWrap}>
+                    <Text style={s.emptyEmoji}>🌐</Text>
+                    <Text style={[s.emptyTitle, { color: c.textSecondary }]}>You have not joined any group rooms yet</Text>
+                    <Pressable onPress={() => setGroupsSub('discover')}>
+                      <Text style={[s.emptyLink, { color: c.primary }]}>Browse public rooms · Create a new group</Text>
+                    </Pressable>
+                  </View>
+                }
+              />
+            ) : (
+              <FlatList
+                data={filteredDiscover}
+                keyExtractor={(r) => r.id}
+                renderItem={({ item }) => (
+                  <View style={[s.cardRow, { backgroundColor: c.card, borderColor: c.border }]}>
+                    <MergedAvatar name={item.title || '?'} avatarUrl={item.avatar_url} size="md" />
+                    <View style={s.rowText}>
+                      <Text style={s.rowTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={s.rowSub} numberOfLines={1}>
+                        {item.description || 'Public cross-language discussion group'}
+                      </Text>
+                      {!!item.members_count && (
+                        <Text style={[s.rowSub, { marginTop: 2 }]}>{item.members_count} members</Text>
+                      )}
+                    </View>
+                    <Pressable style={s.miniPrimary} onPress={() => handleJoin(item.id)}>
+                      <Text style={s.miniPrimaryText}>Join</Text>
+                    </Pressable>
+                  </View>
+                )}
+                ListEmptyComponent={<Text style={s.empty}>🔍 No discoverable public groups right now</Text>}
+              />
+            )}
           </>
         )}
 
@@ -650,18 +912,28 @@ async function handleChangePhoto() {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingBottom: 16 }}>
             <Text style={s.headerTitle}>Settings</Text>
             {!!demoMsg && <Text style={s.demoMsg}>{demoMsg}</Text>}
+            {simulatedError && (
+              <View style={s.errorCard}>
+                <Text style={s.errorTitle}>Simulated Connection Error</Text>
+                <Text style={s.errorSub}>Previewing error boundary & retry UI state.</Text>
+                <Pressable style={s.retryBtn} onPress={() => setSimulatedError(false)}>
+                  <Text style={s.retryText}>Dismiss / Retry</Text>
+                </Pressable>
+              </View>
+            )}
 
             <Text style={s.sectionLabel}>Preferences</Text>
             <View style={s.menuCard}>
-              <View style={s.menuRow}>
+              <Pressable style={s.menuRow} onPress={toggleTheme}>
                 <View style={[s.menuIcon, { backgroundColor: c.primarySoft }]}>
                   <Ionicons name="contrast-outline" size={20} color={c.primary} />
                 </View>
                 <View style={s.menuText}>
                   <Text style={s.menuTitle}>Appearance</Text>
-                  <Text style={s.menuSub}>{scheme === 'dark' ? 'Dark mode (system)' : 'Light mode (system)'}</Text>
+                  <Text style={s.menuSub}>{scheme === 'dark' ? 'Dark mode' : 'Light mode'} (tap to toggle)</Text>
                 </View>
-              </View>
+                <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
+              </Pressable>
               <View style={s.menuDivider} />
               <View style={s.menuRow}>
                 <View style={[s.menuIcon, { backgroundColor: c.primarySoft }]}>
@@ -674,15 +946,44 @@ async function handleChangePhoto() {
                 <Switch value={notificationsOn} onValueChange={setNotificationsOn} trackColor={{ true: c.primary }} />
               </View>
               <View style={s.menuDivider} />
-              <View style={s.menuRow}>
+              <Pressable style={s.menuRow} onPress={() => setPrivacyExpanded((v) => !v)}>
                 <View style={[s.menuIcon, { backgroundColor: c.primarySoft }]}>
                   <Ionicons name="shield-checkmark-outline" size={20} color={c.primary} />
                 </View>
                 <View style={s.menuText}>
                   <Text style={s.menuTitle}>Privacy</Text>
-                  <Text style={s.menuSub}>Last seen, online status</Text>
+                  <Text style={s.menuSub}>
+                    {(user?.show_online !== false ? 'Online' : 'Hidden')} · Receipts {(user?.read_receipts !== false ? 'on' : 'off')}
+                  </Text>
                 </View>
-              </View>
+                <Ionicons name={privacyExpanded ? 'chevron-down' : 'chevron-forward'} size={18} color={c.textSecondary} />
+              </Pressable>
+              {privacyExpanded && (
+                <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 10 }}>
+                  <View style={s.menuRow}>
+                    <View style={s.menuText}>
+                      <Text style={s.menuTitle}>Online presence</Text>
+                      <Text style={s.menuSub}>Show green badge when online</Text>
+                    </View>
+                    <Switch
+                      value={user?.show_online !== false}
+                      onValueChange={(v) => handlePrivacyChange({ show_online: v })}
+                      trackColor={{ true: c.primary }}
+                    />
+                  </View>
+                  <View style={s.menuRow}>
+                    <View style={s.menuText}>
+                      <Text style={s.menuTitle}>Read receipts</Text>
+                      <Text style={s.menuSub}>Off also stops sending them</Text>
+                    </View>
+                    <Switch
+                      value={user?.read_receipts !== false}
+                      onValueChange={(v) => handlePrivacyChange({ read_receipts: v })}
+                      trackColor={{ true: c.primary }}
+                    />
+                  </View>
+                </View>
+              )}
               <View style={s.menuDivider} />
               <View style={s.menuRow}>
                 <View style={[s.menuIcon, { backgroundColor: c.primarySoft }]}>
@@ -728,9 +1029,11 @@ async function handleChangePhoto() {
               <Pressable
                 style={s.menuRow}
                 onPress={() => {
-                  setDemoMsg('⏳ Loading states preview — pull to refresh chats to replay.');
+                  setIsReplayingSkeletons(true);
                   setTab('chats');
+                  showToast('⏳ Replaying loading skeleton animations...');
                   load();
+                  setTimeout(() => setIsReplayingSkeletons(false), 2000);
                 }}
               >
                 <View style={[s.menuIcon, { backgroundColor: c.primarySoft }]}>
@@ -743,7 +1046,7 @@ async function handleChangePhoto() {
                 <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
               </Pressable>
               <View style={s.menuDivider} />
-              <Pressable style={s.menuRow} onPress={() => setDemoMsg('⚠️ Simulated error — this is a preview of the failure + retry UI. Chats reload fixes it.')}>
+              <Pressable style={s.menuRow} onPress={() => setSimulatedError(true)}>
                 <View style={[s.menuIcon, { backgroundColor: 'rgba(244,63,94,0.12)' }]}>
                   <Ionicons name="alert-circle-outline" size={20} color="#f43f5e" />
                 </View>
@@ -754,13 +1057,7 @@ async function handleChangePhoto() {
                 <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
               </Pressable>
               <View style={s.menuDivider} />
-              <Pressable
-                style={s.menuRow}
-                onPress={() => {
-                  load();
-                  setDemoMsg('✨ Data reloaded from server.');
-                }}
-              >
+              <Pressable style={s.menuRow} onPress={() => setShowResetConfirm(true)}>
                 <View style={[s.menuIcon, { backgroundColor: 'rgba(220,38,38,0.1)' }]}>
                   <Ionicons name="trash-outline" size={20} color="#dc2626" />
                 </View>
@@ -785,7 +1082,7 @@ async function handleChangePhoto() {
               </View>
             </View>
 
-            <Pressable style={s.logoutBtn} onPress={logout}>
+            <Pressable style={s.logoutBtn} onPress={() => setShowLogout(true)}>
               <Ionicons name="log-out-outline" size={18} color="#dc2626" />
               <Text style={s.logoutText}>Log Out</Text>
             </Pressable>
@@ -806,9 +1103,9 @@ async function handleChangePhoto() {
                 <View style={s.menuCard}>
                   <View style={[s.banner, { backgroundColor: c.primarySoft }]} />
                   <View style={s.profileHero}>
-                    <View style={[styles.avatar, { backgroundColor: c.primary, width: 76, height: 76, borderRadius: 38 }]}>
-                      <Text style={[styles.avatarText, { fontSize: 30 }]}>{myName.charAt(0).toUpperCase()}</Text>
-                    </View>
+                    <Pressable onPress={() => setShowAvatarModal(true)}>
+                      <MergedAvatar name={myName} avatarUrl={userAvatar} size="2xl" online={user?.show_online !== false} />
+                    </Pressable>
                     <Text style={s.profileName}>{user.username || myName}</Text>
                     <Text style={s.sub}>{user.email}</Text>
                     <Text style={s.bio}>{user.about || 'Hey there! I am using Linguo.'}</Text>
@@ -863,15 +1160,16 @@ async function handleChangePhoto() {
                     <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
                   </Pressable>
                   <View style={s.menuDivider} />
-                  <View style={s.menuRow}>
+                  <Pressable style={s.menuRow} onPress={toggleTheme}>
                     <View style={[s.menuIcon, { backgroundColor: c.backgroundElement }]}>
                       <Ionicons name="contrast-outline" size={20} color={c.textSecondary} />
                     </View>
                     <View style={s.menuText}>
                       <Text style={s.menuTitle}>Appearance</Text>
-                      <Text style={s.menuSub}>{scheme === 'dark' ? 'Dark mode (system)' : 'Light mode (system)'}</Text>
+                      <Text style={s.menuSub}>{scheme === 'dark' ? 'Dark mode' : 'Light mode'} (tap to toggle)</Text>
                     </View>
-                  </View>
+                    <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
+                  </Pressable>
                   <View style={s.menuDivider} />
                   <Pressable style={s.menuRow} onPress={() => setProfileSub('privacy')}>
                     <View style={[s.menuIcon, { backgroundColor: c.backgroundElement }]}>
@@ -885,7 +1183,7 @@ async function handleChangePhoto() {
                   </Pressable>
                 </View>
 
-                <Pressable style={s.logoutBtn} onPress={logout}>
+                <Pressable style={s.logoutBtn} onPress={() => setShowLogout(true)}>
                   <Ionicons name="log-out-outline" size={18} color="#dc2626" />
                   <Text style={s.logoutText}>Log Out</Text>
                 </Pressable>
@@ -893,22 +1191,15 @@ async function handleChangePhoto() {
             )}
 
             {profileSub === 'edit' && (
-              
               <View style={{ gap: 12 }}>
                 <View style={s.menuCard}>
                   <View style={s.menuRow}>
-                    {user.avatar_url ? (
-                      <Image source={{ uri: user.avatar_url }} style={{ width: 56, height: 56, borderRadius: 28 }} />
-                    ) : (
-                      <View style={[styles.avatar, { backgroundColor: c.primary, width: 56, height: 56, borderRadius: 28 }]}>
-                        <Text style={[styles.avatarText, { fontSize: 22 }]}>{myName.charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )}
+                    <MergedAvatar name={myName} avatarUrl={userAvatar} size="lg" online />
                     <View style={s.menuText}>
                       <Text style={s.menuTitle}>Profile Photo</Text>
                       <Text style={s.menuSub}>Visible to all contacts</Text>
                     </View>
-                    <Pressable style={s.miniPrimary} onPress={handleChangePhoto} disabled={savingProfile}>
+                    <Pressable style={s.miniPrimary} onPress={() => setShowAvatarModal(true)} disabled={savingProfile}>
                       <Text style={s.miniPrimaryText}>{savingProfile ? '…' : 'Change'}</Text>
                     </Pressable>
                   </View>
@@ -983,16 +1274,24 @@ async function handleChangePhoto() {
                       <Text style={s.menuTitle}>Online Presence</Text>
                       <Text style={s.menuSub}>Display badge when online</Text>
                     </View>
-                    <Switch value={onlinePublic} onValueChange={setOnlinePublic} trackColor={{ true: c.primary }} />
+                    <Switch
+                      value={user?.show_online !== false}
+                      onValueChange={(v) => handlePrivacyChange({ show_online: v })}
+                      trackColor={{ true: c.primary }}
+                    />
                   </View>
                 </View>
                 <View style={s.infoCard}>
                   <View style={s.menuRow}>
                     <View style={s.menuText}>
                       <Text style={s.menuTitle}>Read Receipts</Text>
-                      <Text style={s.menuSub}>Show checks on delivery</Text>
+                      <Text style={s.menuSub}>Off also stops sending them</Text>
                     </View>
-                    <Switch value={readReceipts} onValueChange={setReadReceipts} trackColor={{ true: c.primary }} />
+                    <Switch
+                      value={user?.read_receipts !== false}
+                      onValueChange={(v) => handlePrivacyChange({ read_receipts: v })}
+                      trackColor={{ true: c.primary }}
+                    />
                   </View>
                 </View>
               </View>
@@ -1011,30 +1310,87 @@ async function handleChangePhoto() {
                 style={s.tabBtn}
                 onPress={() => {
                   setProfileSub('main');
+                  setError('');
                   setTab(t.key);
                 }}
               >
                 <Ionicons name={active ? (t.icon.replace('-outline', '') as any) : t.icon} size={22} color={active ? c.primary : c.textSecondary} />
                 <Text style={[s.tabLabel, { color: active ? c.primary : c.textSecondary }]}>{t.label}</Text>
+                {t.key === 'contacts' && requests.length > 0 && <View style={s.tabDot} />}
               </Pressable>
             );
           })}
           <Pressable style={s.tabBtn} onPress={() => setTab('profile')}>
-            <View style={[styles.avatar, { backgroundColor: tab === 'profile' ? c.primary : '#8b5cf6', width: 24, height: 24, borderRadius: 12 }]}>
-              <Text style={[styles.avatarText, { fontSize: 12 }]}>{myName.charAt(0).toUpperCase()}</Text>
-            </View>
+            <MergedAvatar name={myName} avatarUrl={userAvatar} size="xs" online={user?.show_online !== false} />
             <Text style={[s.tabLabel, { color: tab === 'profile' ? c.primary : c.textSecondary }]}>Profile</Text>
           </Pressable>
         </View>
       </SafeAreaView>
+
+      <AddContactModal visible={showAddContact} onClose={() => setShowAddContact(false)} token={token} onAddContact={handleAddFriend} />
+      <CreateGroupModal visible={showCreateGroup} onClose={() => setShowCreateGroup(false)} onCreate={handleCreateGroup} />
+      <EditAvatarModal
+        visible={showAvatarModal}
+        onClose={() => setShowAvatarModal(false)}
+        currentAvatarUrl={user.avatar_url}
+        name={myName}
+        onSaveAvatar={handleSaveAvatarDirect}
+      />
+      <UserDetailPopup token={token} userId={selectedUserId} onClose={() => setSelectedUserId(null)} onChat={(uid) => handleOpenDirectChat(uid)} />
+      <SearchOverlay
+        visible={showSearch}
+        onClose={() => setShowSearch(false)}
+        items={searchItems}
+        onSelect={(item) => {
+          if (item.type === 'room') router.push(`/chat/${item.id}` as any);
+          else handleOpenDirectChat(item.id);
+        }}
+      />
+      <LogoutConfirmModal
+        visible={showLogout}
+        onClose={() => setShowLogout(false)}
+        onConfirm={() => {
+          setShowLogout(false);
+          logout();
+        }}
+      />
+      <Modal visible={showResetConfirm} transparent animationType="fade" onRequestClose={() => setShowResetConfirm(false)}>
+        <View style={stylesModal.backdrop}>
+          <View style={[stylesModal.card, { backgroundColor: c.card, borderColor: c.border }]}>
+            <Text style={[stylesModal.title, { color: c.text }]}>Reset demo data?</Text>
+            <Text style={[stylesModal.sub, { color: c.textSecondary }]}>This will reload fresh rooms and contacts from the server.</Text>
+            <View style={stylesModal.row}>
+              <Pressable style={[stylesModal.btn, { borderColor: c.border, borderWidth: 1 }]} onPress={() => setShowResetConfirm(false)}>
+                <Text style={[stylesModal.btnText, { color: c.text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[stylesModal.btn, { backgroundColor: '#dc2626' }]}
+                onPress={() => {
+                  setShowResetConfirm(false);
+                  load();
+                  setDemoMsg('✨ Data reloaded from server.');
+                  showToast('✨ Demo data restored');
+                }}
+              >
+                <Text style={[stylesModal.btnText, { color: '#fff' }]}>Reset</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Toast message={toastMsg} onHide={() => setToastMsg(null)} />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  avatar: { alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontWeight: '800' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+const stylesModal = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  card: { width: '100%', maxWidth: 340, borderWidth: 1, borderRadius: 20, padding: 20, gap: 8 },
+  title: { fontSize: 16, fontWeight: '800' },
+  sub: { fontSize: 12, lineHeight: 17 },
+  row: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  btn: { flex: 1, borderRadius: 12, padding: 12, alignItems: 'center' },
+  btnText: { fontWeight: '800', fontSize: 13 },
 });
 
 function makeStyles(c: C) {
@@ -1044,6 +1400,14 @@ function makeStyles(c: C) {
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     authWrap: { flex: 1, padding: 24, gap: 10, backgroundColor: c.background, justifyContent: 'center' },
     brand: { fontSize: 34, fontWeight: '800', color: c.text, textAlign: 'center' },
+    themeFab: { position: 'absolute', top: 54, right: 20, width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: c.border, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+    quoteCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 6, marginVertical: 4 },
+    quote: { fontSize: 13, fontStyle: 'italic', lineHeight: 19 },
+    quoteBy: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    passRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+    eye: { padding: 10 },
+    errorBanner: { backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', borderRadius: 10, padding: 10 },
+    errorText: { color: '#ef4444', fontSize: 13 },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
     headerTitle: { fontSize: 22, fontWeight: '800', color: c.text },
     headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
@@ -1052,25 +1416,48 @@ function makeStyles(c: C) {
     searchPill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.backgroundElement, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9 },
     searchInput: { flex: 1, fontSize: 13, color: c.text, padding: 0 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+    cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderWidth: 1, borderRadius: 16, marginBottom: 8 },
     rowText: { flex: 1, minWidth: 0 },
     rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     rowTitle: { fontSize: 15, fontWeight: '700', color: c.text },
     rowSub: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
     groupBadge: { backgroundColor: c.primarySoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
     groupBadgeText: { fontSize: 9, fontWeight: '800', color: c.primary },
+    omniBadge: { backgroundColor: c.primarySoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    omniText: { fontSize: 9, fontWeight: '800', color: c.primary },
+    unread: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+    unreadText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+    langBadge: { backgroundColor: c.primarySoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+    langBadgeText: { fontSize: 10, fontWeight: '800', color: c.primary, textTransform: 'uppercase' },
     empty: { textAlign: 'center', marginTop: 32, color: c.textSecondary },
+    emptyWrap: { alignItems: 'center', paddingVertical: 40, gap: 6 },
+    emptyEmoji: { fontSize: 36 },
+    emptyTitle: { fontSize: 14, fontWeight: '700' },
+    emptyLink: { fontSize: 12, fontWeight: '800', marginTop: 4 },
     error: { color: '#dc2626', fontSize: 12 },
     sub: { fontSize: 12, color: c.textSecondary },
     sectionLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', color: c.textSecondary, marginTop: 8 },
+    subTabs: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: c.backgroundElement, borderRadius: 12, padding: 4 },
+    subTab: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 6 },
+    subTabText: { fontSize: 12, fontWeight: '800' },
+    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
+    tabDot: { position: 'absolute', top: 2, right: 14, width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
     reqRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
     miniPrimary: { backgroundColor: c.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
     miniPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 12 },
     miniGhost: { borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
     miniGhostText: { fontWeight: '700', fontSize: 12 },
-    langRow: { borderWidth: 1, borderColor: c.border, backgroundColor: c.card, borderRadius: 12, padding: 12, marginVertical: 4 },
+    skelRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, padding: 12 },
+    skelAvatar: { width: 40, height: 40, borderRadius: 20 },
+    skelLine: { height: 12, borderRadius: 6 },
+    skelLineThin: { height: 9, borderRadius: 5 },
     profileName: { fontSize: 20, fontWeight: '800', color: c.text },
-    danger: { backgroundColor: '#dc2626', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 16, minWidth: 200 },
     demoMsg: { fontSize: 12, color: c.primary, fontWeight: '600' },
+    errorCard: { backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', borderRadius: 14, padding: 12, gap: 4 },
+    errorTitle: { fontSize: 12, fontWeight: '800', color: '#ef4444', textTransform: 'uppercase' },
+    errorSub: { fontSize: 12, color: c.textSecondary },
+    retryBtn: { backgroundColor: '#ef4444', borderRadius: 10, padding: 10, alignItems: 'center', marginTop: 6 },
+    retryText: { color: '#fff', fontWeight: '800', fontSize: 12 },
     menuCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 16, overflow: 'hidden' },
     menuRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
     menuDivider: { height: 1, backgroundColor: c.border, marginLeft: 66 },

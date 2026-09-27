@@ -19,6 +19,13 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.securit
 
 COPY --from=build /app/target/backend-1.0.0.jar app.jar
 
+# Run as non-root (least privilege). Render runs on 8000 via $PORT.
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && chown appuser:appgroup /app/app.jar
+USER appuser
+
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD sh -c 'wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8000}/api/v1/health || exit 1'
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

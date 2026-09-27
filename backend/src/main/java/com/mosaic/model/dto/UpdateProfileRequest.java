@@ -12,6 +12,12 @@ public class UpdateProfileRequest {
     private String about;
     private String phone;
 
+    @JsonProperty("show_online")
+    private Boolean showOnline;
+
+    @JsonProperty("read_receipts")
+    private Boolean readReceipts;
+
     public UpdateProfileRequest() {}
 
     public UpdateProfileRequest(String username, String avatarUrl, String about, String phone) {
@@ -29,4 +35,8 @@ public class UpdateProfileRequest {
     public void setAbout(String about) { this.about = about; }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+    public Boolean getShowOnline() { return showOnline; }
+    public void setShowOnline(Boolean showOnline) { this.showOnline = showOnline; }
+    public Boolean getReadReceipts() { return readReceipts; }
+    public void setReadReceipts(Boolean readReceipts) { this.readReceipts = readReceipts; }
 }
