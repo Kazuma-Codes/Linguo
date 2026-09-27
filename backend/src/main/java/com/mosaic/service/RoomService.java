@@ -202,6 +202,16 @@ public class RoomService {
         if (participant.getLanguage() == null) {
             participant.setLanguage(assignSeat(room, currentUser, isCreator));
             participant = participantRepository.save(participant);
+        } else {
+            // Single source of truth: Settings preferred_language wins.
+            // Auto-heal stale per-room seats left over from before the global-default change.
+            String prefNorm = norm(currentUser.getPreferredLanguage());
+            String seatNorm = norm(participant.getLanguage());
+            if (prefNorm != null && TranslationService.LANG_MAP.containsKey(prefNorm)
+                    && !prefNorm.equals(seatNorm)) {
+                participant.setLanguage(prefNorm);
+                participant = participantRepository.save(participant);
+            }
         }
 
         List<ChatParticipant> allParticipants = participantRepository.findAllByRoomId(roomId);

@@ -5,12 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useThemeStore } from '@/store/useThemeStore';
-import { getRoom, getRoomMessages, getMembers, setMyLanguage, updatePreferredLanguage } from '@/lib/api';
+import { getRoom, getRoomMessages, getMembers } from '@/lib/api';
 import { MergedMessageBubble } from '@/components/chat/MergedMessageBubble';
 import { MergedComposer } from '@/components/chat/MergedComposer';
 import { ChatDraftPreview } from '@/components/chat/ChatDraftPreview';
 import { RoomInfoDrawer, MemberInfo } from '@/components/chat/RoomInfoDrawer';
-import { LanguageSeatModal } from '@/components/chat/LanguageSeatModal';
 import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
 import { MergedAvatar } from '@/components/common/MergedAvatar';
 import { Icons } from '@/lib/icons';
@@ -21,7 +20,7 @@ export default function ChatRoomPage() {
   const roomId = params.roomId as string;
   const router = useRouter();
 
-  const { token, user, updatePreferredLanguage: setStoreLang, logout, hasHydrated } = useAuthStore();
+  const { token, user, logout, hasHydrated } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const {
     messages,
@@ -35,22 +34,22 @@ export default function ChatRoomPage() {
     disconnect,
     sendDraft,
     confirmDraft,
-    sendMessage,
     sendTyping,
+    sendReadAck,
     removeDraft,
     updateDraftTranslation,
     deleteMessage,
   } = useChatStore();
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [myLang, setMyLang] = useState<string>('en');
+  // Single source of truth: Settings preferred_language. No per-room seat picker here.
+  const [myLang, setMyLang] = useState<string>(user?.preferred_language || 'en');
   const [roomTitle, setRoomTitle] = useState<string>('Chat Room');
   const [roomDetail, setRoomDetail] = useState<any | null>(null);
   const [distinctLangs, setDistinctLangs] = useState<string[]>([]);
   const [members, setMembers] = useState<MemberInfo[]>([]);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDetailsDrawer, setShowDetailsDrawer] = useState(false);
-  const [pendingLang, setPendingLang] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -76,13 +75,17 @@ export default function ChatRoomPage() {
       return;
     }
 
+    // Sync to global Settings default (single source of truth).
+    if (user.preferred_language) setMyLang(user.preferred_language);
+
     // 1. Fetch room detail
     getRoom(token, roomId)
       .then((roomData) => {
         if (roomData) {
           setRoomDetail(roomData);
           if (roomData.title) setRoomTitle(roomData.title);
-          if (roomData.my_language) setMyLang(roomData.my_language);
+          // Fall back to room seat only if user has no global preference yet.
+          if (!user.preferred_language && roomData.my_language) setMyLang(roomData.my_language);
           if (roomData.distinct_langs) setDistinctLangs(roomData.distinct_langs);
           if (roomData.members) setMembers(roomData.members);
         }
@@ -106,39 +109,17 @@ export default function ChatRoomPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Read receipts: ack latest incoming final message once visible.
+    const lastIncoming = [...messages].reverse().find((m) => !m.is_me && m.delivery_status !== 'read');
+    if (lastIncoming && isConnected) {
+      sendReadAck(lastIncoming.id);
+    }
   }, [messages.length, drafts.length]);
 
-  const handleConfirmGlobalLanguage = async () => {
-    if (!pendingLang || !token) return;
-    try {
-      await setMyLanguage(token, roomId, pendingLang);
-      await updatePreferredLanguage(token, pendingLang);
-      setStoreLang(pendingLang);
-      setMyLang(pendingLang);
-      const langName = LANG_NAMES[pendingLang] || pendingLang.toUpperCase();
-      showToast(`🌐 Set ${langName} as your default language across all rooms!`);
-      getMembers(token, roomId).then((data) => setMembers(data || [])).catch(console.error);
-    } catch (err) {
-      showToast('Failed to update language');
-    } finally {
-      setPendingLang(null);
-    }
-  };
-
-  const handleConfirmRoomOnlyLanguage = async () => {
-    if (!pendingLang || !token) return;
-    try {
-      await setMyLanguage(token, roomId, pendingLang);
-      setMyLang(pendingLang);
-      const langName = LANG_NAMES[pendingLang] || pendingLang.toUpperCase();
-      showToast(`🗣️ Speaking ${langName} in this room.`);
-      getMembers(token, roomId).then((data) => setMembers(data || [])).catch(console.error);
-    } catch (err) {
-      showToast('Failed to update room language');
-    } finally {
-      setPendingLang(null);
-    }
-  };
+  // Sync if Settings default changes elsewhere (dashboard/profile).
+  useEffect(() => {
+    if (user?.preferred_language) setMyLang(user.preferred_language);
+  }, [user?.preferred_language]);
 
   const handleShareLink = async () => {
     try {
@@ -230,17 +211,16 @@ export default function ChatRoomPage() {
             </div>
           </div>
 
-          {/* Right: Language selector & Actions */}
+          {/* Right: Default language badge & Actions */}
           <div className="flex items-center gap-2">
-            {/* Speaking Seat Language selector */}
-            <button
-              onClick={() => setPendingLang(myLang)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] hover:bg-[var(--card)] text-xs font-semibold text-[var(--text)] transition-all cursor-pointer"
-              title="Change your speaking language seat"
+            {/* Default language from Settings (read-only here) */}
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--text)]"
+              title="Default language from Settings — change it in Settings"
             >
-              <span className="text-[var(--muted)] hidden sm:inline">Speaking:</span>
+              <span className="text-[var(--muted)] hidden sm:inline">Default:</span>
               <span className="font-bold text-[var(--primary)]">{currentLangName}</span>
-            </button>
+            </div>
 
             {/* Share Link Button */}
             <button
@@ -313,13 +293,16 @@ export default function ChatRoomPage() {
           <div ref={messagesEndRef} />
         </main>
 
-        {/* MESSAGE COMPOSER */}
+        {/* MESSAGE COMPOSER — all sends go through AI Draft preview */}
         <MergedComposer
           currentLangName={currentLangName}
           isConnected={isConnected}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
-          onSend={(text, extra) => sendMessage(text, extra)}
+          onSend={(text, extra) => {
+            sendDraft(text, extra);
+            showToast('✨ Translating with Groq AI...');
+          }}
           onDraft={(text, extra) => {
             sendDraft(text, extra);
             showToast('✨ Translating with Groq AI...');
@@ -353,15 +336,6 @@ export default function ChatRoomPage() {
         onCopyCode={handleCopyCode}
         onShareLink={handleShareLink}
         onLeaveRoom={() => router.push('/')}
-      />
-
-      {/* Language Preference Confirmation Modal */}
-      <LanguageSeatModal
-        pendingLang={pendingLang}
-        langNames={LANG_NAMES}
-        onConfirmGlobal={handleConfirmGlobalLanguage}
-        onConfirmRoomOnly={handleConfirmRoomOnlyLanguage}
-        onCancel={() => setPendingLang(null)}
       />
 
       {/* Toast notifications */}

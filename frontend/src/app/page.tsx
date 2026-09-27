@@ -16,7 +16,6 @@ import {
   getRoom,
   getRoomMessages,
   getMembers,
-  setMyLanguage,
   updatePreferredLanguage,
   updateProfile,
   listContacts,
@@ -41,7 +40,6 @@ import { CreateGroupModal } from '@/components/groups/CreateGroupModal';
 import { ProfileModal } from '@/components/profile/ProfileModal';
 import { SettingsTab } from '@/components/settings/SettingsTab';
 import { SearchOverlay } from '@/components/search/SearchOverlay';
-import { LanguageSeatModal } from '@/components/chat/LanguageSeatModal';
 import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
 import { AVATAR_PRESETS } from '@/lib/avatarPresets';
 
@@ -58,7 +56,8 @@ export default function HomePage() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [activeRoomDetail, setActiveRoomDetail] = useState<any | null>(null);
   const [roomMembers, setRoomMembers] = useState<MemberInfo[]>([]);
-  const [mySeatLang, setMySeatLang] = useState<string>('en');
+  // Single source of truth: Settings preferred_language.
+  const [mySeatLang, setMySeatLang] = useState<string>(user?.preferred_language || 'en');
 
   // Auth form state
   const [email, setEmail] = useState('');
@@ -82,7 +81,6 @@ export default function HomePage() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [pendingSeatLang, setPendingSeatLang] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [expandedBubbleIds, setExpandedBubbleIds] = useState<Set<string>>(new Set());
 
@@ -99,8 +97,8 @@ export default function HomePage() {
     disconnect,
     sendDraft,
     confirmDraft,
-    sendMessage,
     sendTyping,
+    sendReadAck,
     removeDraft,
     updateDraftTranslation,
     deleteMessage,
@@ -158,12 +156,12 @@ export default function HomePage() {
       return;
     }
 
-    // 1. Fetch Room Metadata & Seat Language
+    // 1. Fetch Room Metadata — seat follows global Settings default
     getRoom(token, activeRoomId)
       .then((detail) => {
         if (detail) {
           setActiveRoomDetail(detail);
-          setMySeatLang(detail.my_language || user.preferred_language || 'en');
+          setMySeatLang(user.preferred_language || detail.my_language || 'en');
           if (detail.members) setRoomMembers(detail.members);
         }
       })
@@ -187,10 +185,19 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoomId, token]);
 
-  // Auto-scroll on new messages or drafts
+  // Auto-scroll on new messages or drafts + read receipts
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const lastIncoming = [...messages].reverse().find((m) => !m.is_me && m.delivery_status !== 'read');
+    if (lastIncoming && isConnected) {
+      sendReadAck(lastIncoming.id);
+    }
   }, [messages.length, drafts.length]);
+
+  // Keep seat in sync when Settings default changes
+  useEffect(() => {
+    if (user?.preferred_language) setMySeatLang(user.preferred_language);
+  }, [user?.preferred_language]);
 
   // Auth Handling
   const handleAuth = async (e: React.FormEvent) => {
@@ -324,39 +331,10 @@ export default function HomePage() {
     try {
       await updatePreferredLanguage(token, newLang);
       setStoreLang(newLang);
+      setMySeatLang(newLang);
       showToast(`Language set to ${LANG_NAMES[newLang] || newLang}`);
     } catch (err: any) {
       showToast('Failed to update language');
-    }
-  };
-
-  const handleConfirmGlobalSeat = async () => {
-    if (!pendingSeatLang || !token || !activeRoomId) return;
-    try {
-      await setMyLanguage(token, activeRoomId, pendingSeatLang);
-      await updatePreferredLanguage(token, pendingSeatLang);
-      setStoreLang(pendingSeatLang);
-      setMySeatLang(pendingSeatLang);
-      showToast(`🌐 Global speaking language set to ${LANG_NAMES[pendingSeatLang] || pendingSeatLang}`);
-      getMembers(token, activeRoomId).then((m) => setRoomMembers(m || [])).catch(console.error);
-    } catch (err) {
-      showToast('Failed to update language');
-    } finally {
-      setPendingSeatLang(null);
-    }
-  };
-
-  const handleConfirmRoomOnlySeat = async () => {
-    if (!pendingSeatLang || !token || !activeRoomId) return;
-    try {
-      await setMyLanguage(token, activeRoomId, pendingSeatLang);
-      setMySeatLang(pendingSeatLang);
-      showToast(`🗣️ Speaking ${LANG_NAMES[pendingSeatLang] || pendingSeatLang} in this room.`);
-      getMembers(token, activeRoomId).then((m) => setRoomMembers(m || [])).catch(console.error);
-    } catch (err) {
-      showToast('Failed to update seat language');
-    } finally {
-      setPendingSeatLang(null);
     }
   };
 
@@ -587,7 +565,7 @@ export default function HomePage() {
         <>
           {/* LIST COLUMN (Left side on desktop, main screen on mobile when no active room)*/}
           <aside
-            className={`w-full md:w-80 lg:w-96 flex flex-col bg-[var(--card)] border-r border-[var(--border)] z-10 flex-none ${
+            className={`w-full md:w-80 lg:w-96 flex flex-col bg-[var(--card)] border-r border-[var(--border)] z-10 flex-1 md:flex-none min-h-0 ${
               activeRoomId ? 'hidden md:flex' : 'flex'
             }`}
           >
@@ -823,13 +801,13 @@ export default function HomePage() {
 
               {/* Right Header Actions */}
               <div className="flex items-center gap-2">
-                {/* Speaking Language Seat Pill */}
+                {/* Default language badge (Settings is source of truth) */}
                 <button
-                  onClick={() => setPendingSeatLang(mySeatLang)}
+                  onClick={() => setActiveTab('settings')}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] hover:bg-[var(--card)] text-xs font-semibold text-[var(--text)] transition-all cursor-pointer"
-                  title="Change your speaking seat language"
+                  title="Default language from Settings — tap to change"
                 >
-                  <span className="text-[var(--muted)] hidden sm:inline">Speaking:</span>
+                  <span className="text-[var(--muted)] hidden sm:inline">Default:</span>
                   <span className="font-bold text-[var(--primary)]">{currentSeatName}</span>
                 </button>
 
@@ -897,13 +875,16 @@ export default function HomePage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* COMPOSER */}
+            {/* COMPOSER — all sends go through AI Draft preview */}
             <MergedComposer
               currentLangName={currentSeatName}
               isConnected={isConnected}
               replyTo={replyTo}
               onCancelReply={() => setReplyTo(null)}
-              onSend={(text, extra) => sendMessage(text, extra)}
+              onSend={(text, extra) => {
+                sendDraft(text, extra);
+                showToast('✨ Translating with Groq AI...');
+              }}
               onDraft={(text, extra) => {
                 sendDraft(text, extra);
                 showToast('✨ Translating with Groq AI...');
@@ -916,9 +897,9 @@ export default function HomePage() {
         </>
       )}
 
-      {/* MOBILE BOTTOM NAVIGATION BAR (< 768px) - shown when no active room is open */}
+      {/* MOBILE BOTTOM NAVIGATION BAR (< 768px) - pinned to viewport bottom */}
       {!activeRoomId && (
-        <div className="md:hidden flex items-center justify-around py-2.5 border-t border-[var(--border)] bg-[var(--card)] z-30 flex-none select-none">
+        <div className="md:hidden flex items-center justify-around py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] border-t border-[var(--border)] bg-[var(--card)] z-30 flex-none select-none">
           <button
             onClick={() => setActiveTab('chats')}
             className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
@@ -1044,15 +1025,6 @@ export default function HomePage() {
             handleOpenDirectChat(item.id);
           }
         }}
-      />
-
-      {/* Language Seat Switcher Modal */}
-      <LanguageSeatModal
-        pendingLang={pendingSeatLang}
-        langNames={LANG_NAMES}
-        onConfirmGlobal={handleConfirmGlobalSeat}
-        onConfirmRoomOnly={handleConfirmRoomOnlySeat}
-        onCancel={() => setPendingSeatLang(null)}
       />
 
       {/* Logout Confirmation Modal */}

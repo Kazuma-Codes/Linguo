@@ -79,6 +79,13 @@ public class RoomController {
         return roomService.getRoomMembers(roomId, currentUser);
     }
 
+    /**
+     * @deprecated Per-room seat switching removed from chat UI.
+     * Settings preferred_language is now the single source of truth
+     * (see AuthController.updatePreferredLanguage which syncs all seats).
+     * Kept for backwards compatibility / migration only.
+     */
+    @Deprecated
     @PostMapping("/rooms/{roomId}/set-language")
     public RoomDetailResponse setMyLanguage(
             @PathVariable UUID roomId,

@@ -189,7 +189,7 @@ export async function getRoomMessages(token: string, roomId: string) {
   });
 }
 
-/** Change the current user's seat in a room. */
+/** @deprecated Per-room seat switching removed from chat UI. Use updatePreferredLanguage (Settings) instead. Kept for migration only. */
 export async function setMyLanguage(token: string, roomId: string, language: string) {
   return apiFetch(`/rooms/${roomId}/set-language`, {
     method: 'POST',

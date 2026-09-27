@@ -53,26 +53,8 @@ export function MergedComposer({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleQuickSend();
+      handleDraftTranslate();
     }
-  };
-
-  const handleQuickSend = () => {
-    const trimmed = text.trim();
-    if ((!trimmed && !attachment) || !isConnected) return;
-
-    onSend(trimmed, {
-      reply_to_id: replyTo?.id,
-      attachment_url: attachment?.url,
-      attachment_name: attachment?.name,
-      attachment_size: attachment?.size,
-      message_type: attachment?.type || 'text',
-    });
-
-    setText('');
-    setAttachment(null);
-    onCancelReply();
-    onTyping(false);
   };
 
   const handleDraftTranslate = () => {
@@ -177,23 +159,19 @@ export function MergedComposer({
 
       {/* Main Composer Row */}
       <div className="flex items-end gap-2 sm:gap-3">
-        {/* Hidden File Input */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-        />
-
-        {/* Attachment Button */}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
+        {/* Attachment Button — label activates the picker natively (click() is blocked on some mobile browsers) */}
+        <label
           className="p-2.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] hover:bg-[var(--card)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer flex-none"
           title="Attach photo or document"
         >
-          <Icons.clip className="w-5 h-5" />
-        </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="sr-only"
+          />
+          <Icons.clip className="w-5 h-5 pointer-events-none" />
+        </label>
 
         {/* Emoji Button */}
         <button
@@ -216,37 +194,24 @@ export function MergedComposer({
             disabled={!isConnected}
             placeholder={
               isConnected
-                ? `Type in ${currentLangName}... (Enter to send)`
+                ? `Type in ${currentLangName}... (Enter for AI preview)`
                 : 'Connecting...'
             }
             className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-2xl px-4 py-2.5 text-sm sm:text-base text-[var(--text)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all resize-none max-h-32"
           />
         </div>
 
-        {/* Actions: Send & Groq AI Translate */}
+        {/* Single Send action — always goes through AI translation preview */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-none">
-          {/* Quick Send Button */}
-          <button
-            type="button"
-            onClick={handleQuickSend}
-            disabled={!isConnected || (!text.trim() && !attachment)}
-            className="p-2.5 sm:px-4 sm:py-2.5 rounded-full bg-[var(--primary)] text-white hover:opacity-90 active:scale-95 disabled:opacity-40 transition-all shadow-sm flex items-center justify-center cursor-pointer"
-            title="Send directly"
-          >
-            <Icons.send className="w-4 h-4 sm:mr-1.5" />
-            <span className="hidden sm:inline text-xs font-bold">Send</span>
-          </button>
-
-          {/* Groq AI Draft Button */}
           <button
             type="button"
             onClick={handleDraftTranslate}
             disabled={!isConnected || (!text.trim() && !attachment)}
             className="p-2.5 sm:px-4 sm:py-2.5 rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white hover:opacity-90 active:scale-95 disabled:opacity-40 transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
-            title="Translate with Groq AI and preview cultural nuances before sending"
+            title="Send via AI translation preview (review + Confirm & Send)"
           >
-            <Icons.spark className="w-4 h-4" />
-            <span className="hidden sm:inline text-xs font-bold">AI Draft</span>
+            <Icons.send className="w-4 h-4" />
+            <span className="hidden sm:inline text-xs font-bold">Send</span>
           </button>
         </div>
       </div>

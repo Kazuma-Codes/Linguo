@@ -141,66 +141,12 @@ public class ChatService {
 
     @Transactional
     public void handleDirectSend(String roomIdStr, WsIncomingMessage incoming, User sender) {
-        String text = incoming.getText();
-        if (text == null || text.isBlank()) {
-            return;
-        }
-
-        UUID roomId = UUID.fromString(roomIdStr);
-        ChatRoom room = roomRepository.findById(roomId).orElse(null);
-        if (room == null) {
-            return;
-        }
-
-        String detectedRaw = languageDetectionService.detectLanguage(text);
-        String detCode = detectedRaw != null ? translationService.normLang(detectedRaw) : null;
-
-        UUID replyTo = null;
-        if (incoming.getReplyToId() != null && !incoming.getReplyToId().isBlank()) {
-            try {
-                replyTo = UUID.fromString(incoming.getReplyToId());
-            } catch (Exception ignored) {}
-        }
-
-        Message msg = Message.builder()
-                .room(room)
-                .sender(sender)
-                .originalText(text)
-                .translatedText(text)
-                .detectedLang(detCode)
-                .status("final")
-                .messageType(incoming.getMessageType() != null ? incoming.getMessageType() : "text")
-                .replyToId(replyTo)
-                .attachmentUrl(incoming.getAttachmentUrl())
-                .attachmentName(incoming.getAttachmentName())
-                .attachmentSize(incoming.getAttachmentSize())
-                .deliveryStatus("delivered")
-                .build();
-
-        msg = messageRepository.saveAndFlush(msg);
-
-        WsOutgoingMessage finalizedMsg = WsOutgoingMessage.builder()
-                .type("message_finalized")
-                .id(msg.getId().toString())
-                .senderEmail(sender.getEmail())
-                .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
-                .senderAvatarUrl(sender.getAvatarUrl())
-                .originalText(text)
-                .text(text)
-                .translatedText(null)
-                .detectedLang(detCode)
-                .replyToId(msg.getReplyToId() != null ? msg.getReplyToId().toString() : null)
-                .attachmentUrl(msg.getAttachmentUrl())
-                .attachmentName(msg.getAttachmentName())
-                .attachmentSize(msg.getAttachmentSize())
-                .messageType(msg.getMessageType())
-                .deliveryStatus("delivered")
-                .status("final")
-                .createdAt(msg.getCreatedAt() != null ? msg.getCreatedAt().toEpochMilli() : System.currentTimeMillis())
-                .build();
-
-        redisPubSubService.publish(roomIdStr, finalizedMsg);
-        log.info("Direct message finalized immediately: {}", msg.getId());
+        // Enforced Draft→Confirm path (chosen over quick-send bypass):
+        // every message gets AI translation + footnotes + cache write, so receivers
+        // always see their Settings default language. Direct final-send caused
+        // untranslated originals and inconsistent translations maps.
+        log.info("Legacy direct_send received; routing through draft pipeline for room {}", roomIdStr);
+        handleSendDraft(roomIdStr, incoming, sender);
     }
 
     public void handleDirectSend(String roomIdStr, String text, User sender) {
@@ -323,10 +269,18 @@ public class ChatService {
             }
 
             // 2. Determine Recipient Target Language(s) across all distinct participants
+            // Single source of truth: receiver's Settings preferred_language wins over
+            // any stale per-room seat snapshot.
             List<ChatParticipant> allParticipants = participantRepository.findAllByRoomId(room.getId());
             List<String> listenerLangs = allParticipants.stream()
                     .filter(p -> !p.getUser().getId().equals(sender.getId()))
-                    .map(p -> translationService.normLang(p.getLanguage()))
+                    .map(p -> {
+                        String pref = p.getUser() != null ? translationService.normLang(p.getUser().getPreferredLanguage()) : null;
+                        if (pref != null && TranslationService.LANG_MAP.containsKey(pref)) {
+                            return pref;
+                        }
+                        return translationService.normLang(p.getLanguage());
+                    })
                     .filter(lang -> lang != null && TranslationService.LANG_MAP.containsKey(lang))
                     .distinct()
                     .toList();

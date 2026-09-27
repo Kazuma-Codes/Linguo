@@ -331,10 +331,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: (text, extra) => {
+    // Enforced Draft→Confirm: legacy quick-send now routes through AI translation
+    // so receivers always get their Settings default language + footnotes.
     const ws = get().ws;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
-        type: 'send_message',
+        type: 'send_draft',
         text,
         reply_to_id: extra?.reply_to_id,
         attachment_url: extra?.attachment_url,

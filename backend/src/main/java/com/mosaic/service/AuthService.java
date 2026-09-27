@@ -6,6 +6,7 @@ import com.mosaic.model.dto.UpdateProfileRequest;
 import com.mosaic.model.dto.UserCreateRequest;
 import com.mosaic.model.dto.UserResponse;
 import com.mosaic.model.entity.User;
+import com.mosaic.repository.ChatParticipantRepository;
 import com.mosaic.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,11 +23,14 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final ChatParticipantRepository participantRepository;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
+                       ChatParticipantRepository participantRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.participantRepository = participantRepository;
     }
 
     @Transactional
@@ -81,8 +85,22 @@ public class AuthService {
         User managedUser = userRepository.findById(user.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        managedUser.setPreferredLanguage(newLanguage.trim().toLowerCase());
+        String normalized = newLanguage.trim().toLowerCase();
+        // Validate against supported codes; fall back to raw normalized if unknown
+        // so frontend Settings remains single source of truth.
+        if (!TranslationService.LANG_MAP.containsKey(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported language code: " + newLanguage);
+        }
+
+        managedUser.setPreferredLanguage(normalized);
         managedUser = userRepository.save(managedUser);
+
+        // Single source of truth: sync every room seat to the new global default.
+        try {
+            participantRepository.updateLanguageByUserId(managedUser.getId(), normalized);
+        } catch (Exception ignored) {
+            // Best-effort sync; RoomService.getRoom also auto-heals stale seats on read.
+        }
 
         return toUserResponse(managedUser);
     }
