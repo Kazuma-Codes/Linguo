@@ -37,8 +37,8 @@ interface RoomInfoDrawerProps {
   isAdmin?: boolean;
   /** Creator's user UUID — that row gets an Admin badge. */
   creatorId?: string;
-  /** Persist group title/description/emoji/avatar (creator only). */
-  onSaveSettings?: (data: { title: string; description: string; emoji: string; avatarUrl: string }) => Promise<void>;
+  /** Persist group title/description/avatar (creator only). */
+  onSaveSettings?: (data: { title: string; description: string; avatarUrl: string }) => Promise<void>;
 }
 
 export function RoomInfoDrawer({
@@ -65,7 +65,6 @@ export function RoomInfoDrawer({
   const [editingSettings, setEditingSettings] = useState(false);
   const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description || '');
-  const [editEmoji, setEditEmoji] = useState(emoji || '💬');
   const [editAvatar, setEditAvatar] = useState(avatarUrl || '');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -76,11 +75,10 @@ export function RoomInfoDrawer({
     setEditingSettings(false);
     setEditTitle(title);
     setEditDescription(description || '');
-    setEditEmoji(emoji || '💬');
     setEditAvatar(avatarUrl || '');
     setShowAvatarPicker(false);
     setSettingsError(null);
-  }, [roomId, title, description, emoji, avatarUrl]);
+  }, [roomId, title, description, avatarUrl]);
 
   if (!isOpen) return null;
 
@@ -94,7 +92,6 @@ export function RoomInfoDrawer({
       await onSaveSettings({
         title: editTitle.trim(),
         description: editDescription.trim(),
-        emoji: editEmoji.trim() || '💬',
         avatarUrl: editAvatar.trim(),
       });
       setEditingSettings(false);
@@ -127,7 +124,6 @@ export function RoomInfoDrawer({
           <MergedAvatar
             name={title}
             avatarUrl={avatarUrl}
-            emoji={emoji || '💬'}
             size="xl"
           />
           <div>
@@ -182,7 +178,6 @@ export function RoomInfoDrawer({
               <MergedAvatar
                 name={editTitle || title}
                 avatarUrl={editAvatar || undefined}
-                emoji={editEmoji}
                 size="lg"
               />
               <div className="min-w-0">

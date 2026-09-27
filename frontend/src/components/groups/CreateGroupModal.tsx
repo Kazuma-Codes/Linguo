@@ -6,10 +6,8 @@ import { Icons } from '@/lib/icons';
 interface CreateGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (data: { title: string; description: string; emoji: string; is_private: boolean }) => void;
+  onCreate: (data: { title: string; description: string; is_private: boolean }) => void;
 }
-
-const EMOJI_OPTIONS = ['💬', '🚀', '🌟', '📚', '⚡', '💡', '🌍', '🎮', '🎧', '🎨', '🔥', '☕'];
 
 export function CreateGroupModal({
   isOpen,
@@ -18,7 +16,6 @@ export function CreateGroupModal({
 }: CreateGroupModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [emoji, setEmoji] = useState('💬');
   const [isPrivate, setIsPrivate] = useState(false);
 
   if (!isOpen) return null;
@@ -29,7 +26,6 @@ export function CreateGroupModal({
     onCreate({
       title: title.trim(),
       description: description.trim(),
-      emoji,
       is_private: isPrivate,
     });
     onClose();
@@ -49,29 +45,6 @@ export function CreateGroupModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Emoji Picker Row */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
-              Group Icon
-            </label>
-            <div className="flex items-center gap-2 overflow-x-auto py-1">
-              {EMOJI_OPTIONS.map((e) => (
-                <button
-                  type="button"
-                  key={e}
-                  onClick={() => setEmoji(e)}
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-transform cursor-pointer ${
-                    emoji === e
-                      ? 'bg-[var(--primary)] text-white scale-110 shadow-xs'
-                      : 'bg-[var(--bg-subtle)] hover:bg-[var(--card-border)]'
-                  }`}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-1.5">
               Group Title
