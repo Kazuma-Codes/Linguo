@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Colors } from '@/constants/theme';
@@ -106,25 +108,51 @@ export default function Home() {
   const myLang = user?.preferred_language || 'en';
   const myName = user?.username || user?.email?.split('@')[0] || 'T';
 
-  // Google Sign-In via Expo proxy (works in Expo Go; no native build needed).
-  // Needs EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (and Android ID for prod builds).
-  const googleIdConfigured = !!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  // Google Sign-In: PKCE code flow in dev/production builds.
+  // NOTE: OAuth does NOT work in Expo Go (no custom scheme) — use a dev build:
+  //   npx expo run:android   (or EAS: eas build --profile development)
+  // Google Cloud needs an Android OAuth client (package com.mosaic.chat + your
+  // key SHA-1) and the IDs below in EXPO_PUBLIC_GOOGLE_*.
+  const googleIdConfigured = !!(
+    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+  );
   const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    useProxy: true,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    scopes: ['openid', 'profile', 'email'],
   });
 
   useEffect(() => {
-    if (googleResponse?.type !== 'success') return;
-    const idToken = (googleResponse.params as any)?.id_token;
-    if (!idToken) {
-      setError('Google did not return a credential');
+    if (googleResponse?.type !== 'success') {
+      if (googleResponse?.type === 'error') setError('Google sign-in was cancelled or failed');
       return;
     }
     (async () => {
       setLoading(true);
       try {
+        let idToken = (googleResponse.params as any)?.id_token as string | undefined;
+        // Native PKCE flow returns a code — exchange it (no client secret needed
+        // for installed apps) to obtain the ID token our backend verifies.
+        if (!idToken && googleResponse.params.code && googleRequest?.codeVerifier) {
+          const clientId =
+            Platform.OS === 'android'
+              ? process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
+              : Platform.OS === 'ios'
+                ? process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
+                : process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+          const exchanged: any = await AuthSession.exchangeCodeAsync(
+            {
+              clientId: clientId || '',
+              redirectUri: googleRequest.redirectUri,
+              code: googleResponse.params.code,
+              extraParams: { code_verifier: googleRequest.codeVerifier },
+            },
+            { tokenEndpoint: 'https://oauth2.googleapis.com/token' },
+          );
+          idToken = exchanged?.id_token;
+        }
+        if (!idToken) throw new Error('Google did not return a credential');
         const t = await googleLogin(idToken);
         const access = t.access_token || t.accessToken;
         const me = await getMe(access);
