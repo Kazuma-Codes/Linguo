@@ -16,6 +16,7 @@ import {
   getRoom,
   getRoomMessages,
   getMembers,
+  updateRoom,
   updatePreferredLanguage,
   updateProfile,
   listContacts,
@@ -369,6 +370,14 @@ export default function HomePage() {
     } catch {
       showToast(`📋 ${activeRoomId}`);
     }
+  };
+
+  const handleSaveGroupSettings = async (data: { title: string; description: string; emoji: string }) => {
+    if (!token || !activeRoomId) return;
+    const updated = await updateRoom(token, activeRoomId, data);
+    setActiveRoomDetail(updated);
+    showToast('⚙️ Group settings saved');
+    await loadAllData();
   };
 
   if (!hasHydrated) {
