@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MergedAvatar } from '@/components/common/MergedAvatar';
-import { AvatarCropper } from '@/components/common/AvatarCropper';
+import { AvatarCropperPopup } from '@/components/common/AvatarCropper';
 import { Icons } from '@/lib/icons';
 
 export interface MemberInfo {
@@ -65,9 +65,10 @@ export function RoomInfoDrawer({
   const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description || '');
   const [editAvatar, setEditAvatar] = useState(avatarUrl || '');
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [pendingSrc, setPendingSrc] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Refresh the form whenever a different room is opened
   useEffect(() => {
@@ -75,13 +76,34 @@ export function RoomInfoDrawer({
     setEditTitle(title);
     setEditDescription(description || '');
     setEditAvatar(avatarUrl || '');
-    setShowAvatarPicker(false);
+    if (pendingSrc) URL.revokeObjectURL(pendingSrc);
+    setPendingSrc(null);
     setSettingsError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, title, description, avatarUrl]);
 
   if (!isOpen) return null;
 
   const canEdit = isAdmin && !isDirect && !!onSaveSettings;
+
+  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setSettingsError('Please upload an image file (JPG, PNG, WebP)');
+      return;
+    }
+    if (pendingSrc) URL.revokeObjectURL(pendingSrc);
+    setPendingSrc(URL.createObjectURL(file));
+    setSettingsError(null);
+  };
+
+  const closeCropper = () => {
+    if (pendingSrc) URL.revokeObjectURL(pendingSrc);
+    setPendingSrc(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleSaveSettings = async () => {
     if (!onSaveSettings || !editTitle.trim()) return;
@@ -94,7 +116,8 @@ export function RoomInfoDrawer({
         avatarUrl: editAvatar.trim(),
       });
       setEditingSettings(false);
-      setShowAvatarPicker(false);
+      if (pendingSrc) URL.revokeObjectURL(pendingSrc);
+      setPendingSrc(null);
     } catch (err: any) {
       setSettingsError(err.message || 'Failed to save settings');
     } finally {
@@ -181,23 +204,29 @@ export function RoomInfoDrawer({
               />
               <div className="min-w-0">
                 <p className="text-xs font-bold text-[var(--text)]">Group photo</p>
-                <button
-                  type="button"
-                  onClick={() => setShowAvatarPicker((v) => !v)}
-                  className="mt-1 px-3 py-1.5 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] text-xs font-bold hover:bg-[var(--primary)]/20 transition-colors cursor-pointer"
-                >
-                  {showAvatarPicker ? 'Hide picker' : 'Change photo'}
-                </button>
+                <label className="mt-1 inline-block px-3 py-1.5 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] text-xs font-bold hover:bg-[var(--primary)]/20 transition-colors cursor-pointer">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={handleAvatarFile}
+                  />
+                  <span className="pointer-events-none">Change photo</span>
+                </label>
                 <p className="text-[10px] text-[var(--muted)] mt-1">
-                  Cropping only previews — press Save below to apply for everyone.
+                  Crop in the popup, hit ✓, then press Save below.
                 </p>
               </div>
             </div>
-            {showAvatarPicker && (
-              <AvatarCropper
-                onApply={(dataUrl) => {
-                  setEditAvatar(dataUrl);
-                  setShowAvatarPicker(false);
+            {pendingSrc && (
+              <AvatarCropperPopup
+                src={pendingSrc}
+                onApply={(dataUrl) => setEditAvatar(dataUrl)}
+                onClose={closeCropper}
+                onPickDifferentFile={(file) => {
+                  if (pendingSrc) URL.revokeObjectURL(pendingSrc);
+                  setPendingSrc(URL.createObjectURL(file));
                 }}
               />
             )}

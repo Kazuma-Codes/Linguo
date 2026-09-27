@@ -49,6 +49,12 @@ export function EditAvatarModal({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleCropperFile = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    if (pendingSrc) URL.revokeObjectURL(pendingSrc);
+    setPendingSrc(URL.createObjectURL(file));
+  };
+
   const handleApplyUrl = () => {
     if (!urlInput.trim()) return;
     setSelectedAvatar(urlInput.trim());
@@ -185,7 +191,7 @@ export function EditAvatarModal({
             src={pendingSrc}
             onApply={(dataUrl) => setSelectedAvatar(dataUrl)}
             onClose={closeCropper}
-            onPickDifferent={() => fileInputRef.current?.click()}
+            onPickDifferentFile={handleCropperFile}
           />
         )}
 

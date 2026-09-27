@@ -141,15 +141,24 @@ export function AvatarCropperPopup({ src, onApply, onClose, onPickDifferentFile 
             <Icons.x className="w-5 h-5" />
           </button>
           <span className="text-sm font-bold text-[var(--text)]">Drag the image to adjust</span>
-          <button
-            type="button"
-            onClick={onPickDifferent}
+          <label
             className="flex items-center gap-1 text-xs font-bold text-[var(--primary)] hover:opacity-80 transition-opacity cursor-pointer"
             title="Choose a different photo"
           >
-            <Icons.upload className="w-4 h-4" />
-            <span className="hidden sm:inline">Upload</span>
-          </button>
+            <input
+              type="file"
+              ref={pickFileRef}
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (pickFileRef.current) pickFileRef.current.value = '';
+                if (file) onPickDifferentFile(file);
+              }}
+            />
+            <Icons.upload className="w-4 h-4 pointer-events-none" />
+            <span className="hidden sm:inline pointer-events-none">Upload</span>
+          </label>
         </div>
 
         {/* Fixed-size stage with circular viewport */}
