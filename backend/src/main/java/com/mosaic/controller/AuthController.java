@@ -48,6 +48,12 @@ public class AuthController {
         return authService.login(request.getEmail(), request.getPassword());
     }
 
+    // Google Sign-In: { "id_token": "<GIS credential>" } → our JWT
+    @PostMapping(value = "/google", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public TokenResponse loginGoogle(@Valid @RequestBody com.mosaic.model.dto.GoogleLoginRequest request) {
+        return authService.googleLogin(request.getIdToken());
+    }
+
     @GetMapping("/me")
     public UserResponse getMe(@AuthenticationPrincipal User currentUser) {
         return authService.toUserResponse(currentUser);

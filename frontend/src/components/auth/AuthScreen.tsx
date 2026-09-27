@@ -1,6 +1,22 @@
 "use client";
 
 import Image from 'next/image';
+import { useEffect, useRef } from 'react';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (opts: { client_id: string; callback: (res: { credential: string }) => void }) => void;
+          renderButton: (el: HTMLElement, opts: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
+
+const GOOGLE_GSI_SRC = 'https://accounts.google.com/gsi/client';
 
 interface AuthScreenProps {
   isLogin: boolean;
@@ -16,6 +32,9 @@ interface AuthScreenProps {
   handleAuth: (e: React.FormEvent) => void;
   theme: string;
   toggleTheme: () => void;
+  /** Google client ID (NEXT_PUBLIC_GOOGLE_CLIENT_ID). Hides the button when unset. */
+  googleClientId?: string;
+  onGoogleLogin?: (credential: string) => void;
 }
 
 export function AuthScreen({
@@ -32,7 +51,49 @@ export function AuthScreen({
   handleAuth,
   theme,
   toggleTheme,
+  googleClientId,
+  onGoogleLogin,
 }: AuthScreenProps) {
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
+
+  // Google Identity Services button (official, handles account chooser + One Tap UX)
+  useEffect(() => {
+    if (!googleClientId || !onGoogleLogin || !googleBtnRef.current) return;
+    let cancelled = false;
+    const render = () => {
+      if (cancelled || !window.google || !googleBtnRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (res) => {
+          if (!cancelled && res?.credential) onGoogleLogin(res.credential);
+        },
+      });
+      googleBtnRef.current.innerHTML = '';
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: theme === 'dark' ? 'filled_black' : 'outline',
+        size: 'large',
+        width: googleBtnRef.current.offsetWidth || 320,
+        text: 'continue_with',
+      });
+    };
+    const existing = document.querySelector(`script[src="${GOOGLE_GSI_SRC}"]`);
+    if (existing) {
+      if (window.google) render();
+      else existing.addEventListener('load', render, { once: true });
+      return () => {
+        cancelled = true;
+      };
+    }
+    const script = document.createElement('script');
+    script.src = GOOGLE_GSI_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = render;
+    document.head.appendChild(script);
+    return () => {
+      cancelled = true;
+    };
+  }, [googleClientId, theme, onGoogleLogin]);
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-[46%_1fr] bg-[var(--bg)] text-[var(--text)] transition-colors duration-200 relative">
       {/* Theme toggle button top right */}
@@ -181,6 +242,18 @@ export function AuthScreen({
               {isLogin ? 'Sign up' : 'Sign In'}
             </button>
           </p>
+
+          {/* Google Sign-In (hidden until NEXT_PUBLIC_GOOGLE_CLIENT_ID is set) */}
+          {googleClientId && onGoogleLogin && (
+            <>
+              <div className="flex items-center gap-3 mt-6">
+                <div className="flex-1 h-px bg-[var(--border)]" />
+                <span className="text-xs text-[var(--muted)]">or</span>
+                <div className="flex-1 h-px bg-[var(--border)]" />
+              </div>
+              <div ref={googleBtnRef} className="mt-4 flex justify-center min-h-[44px]" />
+            </>
+          )}
         </div>
       </main>
     </div>

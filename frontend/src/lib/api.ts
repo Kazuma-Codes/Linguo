@@ -80,6 +80,15 @@ export async function register(email: string, password: string, preferred_langua
   });
 }
 
+/** Google Sign-In: exchange a GIS ID token for our JWT. */
+export async function googleLogin(idToken: string) {
+  return apiFetch('/auth/google', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: idToken }),
+  });
+}
+
 /** Fetch the current user's profile. */
 export async function getMe(token: string) {
   return apiFetch('/auth/me', {
