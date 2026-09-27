@@ -82,6 +82,7 @@ export default function HomePage() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [expandedBubbleIds, setExpandedBubbleIds] = useState<Set<string>>(new Set());
 
@@ -245,6 +246,7 @@ export default function HomePage() {
     try {
       const room = await getOrCreateDirectRoom(token, targetUserId);
       await loadAllData();
+      setSelectedUserId(null);
       setActiveRoomId(room.id);
       setActiveTab('chats');
     } catch (err: any) {
@@ -771,12 +773,26 @@ export default function HomePage() {
                   <Icons.back className="w-5 h-5" />
                 </button>
 
-                <MergedAvatar
-                  name={activeRoomDetail?.title || 'Chat'}
-                  avatarUrl={activeRoomDetail?.avatar_url}
-                  emoji={activeRoomDetail?.emoji || '💬'}
-                  size="md"
-                />
+                {/* Tap avatar: DM → other person's profile; group → room details */}
+                <span
+                  onClick={() => {
+                    if (activeRoomDetail?.room_type === 'direct') {
+                      const other = roomMembers.find((m) => m.email !== user.email);
+                      if (other?.user_id) setSelectedUserId(other.user_id);
+                    } else {
+                      setShowInfoDrawer(true);
+                    }
+                  }}
+                  className="cursor-pointer flex-none"
+                  title={activeRoomDetail?.room_type === 'direct' ? 'View profile' : 'Room details'}
+                >
+                  <MergedAvatar
+                    name={activeRoomDetail?.title || 'Chat'}
+                    avatarUrl={activeRoomDetail?.avatar_url}
+                    emoji={activeRoomDetail?.emoji || '💬'}
+                    size="md"
+                  />
+                </span>
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -984,12 +1000,21 @@ export default function HomePage() {
           onCopyCode={handleCopyCode}
           onShareLink={handleShareLink}
           isDirect={activeRoomDetail?.room_type === 'direct'}
+          onSelectMember={(uid) => setSelectedUserId(uid)}
           onLeaveRoom={() => {
             setShowInfoDrawer(false);
             setActiveRoomId(null);
           }}
         />
       )}
+
+      {/* User detail popup (DM avatar tap / roster tap) */}
+      <UserDetailPopup
+        token={token}
+        userId={selectedUserId}
+        onClose={() => setSelectedUserId(null)}
+        onChat={(uid) => handleOpenDirectChat(uid)}
+      />
 
       {/* Add Contact Modal */}
       <AddContactModal

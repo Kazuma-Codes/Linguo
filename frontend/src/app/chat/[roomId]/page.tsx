@@ -5,11 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useThemeStore } from '@/store/useThemeStore';
-import { getRoom, getRoomMessages, getMembers } from '@/lib/api';
+import { getRoom, getRoomMessages, getMembers, getOrCreateDirectRoom } from '@/lib/api';
 import { MergedMessageBubble } from '@/components/chat/MergedMessageBubble';
 import { MergedComposer } from '@/components/chat/MergedComposer';
 import { ChatDraftPreview } from '@/components/chat/ChatDraftPreview';
 import { RoomInfoDrawer, MemberInfo } from '@/components/chat/RoomInfoDrawer';
+import { UserDetailPopup } from '@/components/profile/UserDetailPopup';
 import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
 import { MergedAvatar } from '@/components/common/MergedAvatar';
 import { Icons } from '@/lib/icons';
@@ -50,6 +51,7 @@ export default function ChatRoomPage() {
   const [members, setMembers] = useState<MemberInfo[]>([]);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDetailsDrawer, setShowDetailsDrawer] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
