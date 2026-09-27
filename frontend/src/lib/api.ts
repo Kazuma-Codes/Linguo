@@ -118,6 +118,13 @@ export async function searchUsers(token: string, query: string) {
   });
 }
 
+/** Fetch a single user's public details (for the profile popup). */
+export async function getUserById(token: string, userId: string) {
+  return apiFetch(`/users/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 /** Create a new translation room. */
 export async function createRoom(
   token: string,

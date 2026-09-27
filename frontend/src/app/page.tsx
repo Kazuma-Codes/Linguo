@@ -41,6 +41,7 @@ import { ProfileModal } from '@/components/profile/ProfileModal';
 import { SettingsTab } from '@/components/settings/SettingsTab';
 import { SearchOverlay } from '@/components/search/SearchOverlay';
 import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
+import { UserDetailPopup } from '@/components/profile/UserDetailPopup';
 import { AVATAR_PRESETS } from '@/lib/avatarPresets';
 
 export default function HomePage() {

@@ -29,6 +29,8 @@ interface RoomInfoDrawerProps {
   onLeaveRoom?: () => void;
   /** 1:1 direct chat — hides invite links, room code; shows the person, not group stats. */
   isDirect?: boolean;
+  /** Tap a participant to see their detail popup. */
+  onSelectMember?: (userId: string) => void;
 }
 
 export function RoomInfoDrawer({
@@ -47,6 +49,7 @@ export function RoomInfoDrawer({
   onShareLink,
   onLeaveRoom,
   isDirect = false,
+  onSelectMember,
 }: RoomInfoDrawerProps) {
   if (!isOpen) return null;
 
@@ -131,7 +134,11 @@ export function RoomInfoDrawer({
             {members.map((m) => (
               <div
                 key={m.email}
-                className="flex items-center justify-between p-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)]/50"
+                onClick={() => m.user_id && onSelectMember?.(m.user_id)}
+                className={`flex items-center justify-between p-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)]/50 ${
+                  m.user_id && onSelectMember ? 'cursor-pointer hover:bg-[var(--bg-subtle)] transition-colors' : ''
+                }`}
+                title={m.user_id ? 'View profile' : undefined}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <MergedAvatar
