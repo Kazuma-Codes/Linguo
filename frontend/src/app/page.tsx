@@ -665,6 +665,7 @@ export default function HomePage() {
             onEnterRoom={handleSelectRoom}
             onJoinRoom={handleJoinPublicRoom}
             onCreateGroupModal={() => setShowCreateGroupModal(true)}
+            onJoinByCode={handleJoinByCode}
           />
         ) : (
           /* CHATS TAB (Conversations List) */

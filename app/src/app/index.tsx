@@ -78,6 +78,7 @@ export default function Home() {
   const [requests, setRequests] = useState<any[]>([]);
   const [roomTitle, setRoomTitle] = useState('');
   const [search, setSearch] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [contactResults, setContactResults] = useState<any[]>([]);
   const [contactSearching, setContactSearching] = useState(false);
@@ -174,6 +175,30 @@ export default function Home() {
       router.push(`/chat/${id}` as any);
     } catch (e: any) {
       setError(e.message);
+    }
+  }
+
+  /** Join by pasted invite link or raw room code. */
+  async function handleJoinByCode() {
+    if (!token || !inviteCode.trim()) return;
+    const m = inviteCode.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+    if (!m) {
+      setError('That doesn’t look like an invite link or room code');
+      return;
+    }
+    const id = m[0];
+    try {
+      await joinRoom(token, id);
+      await load();
+      setInviteCode('');
+      router.push(`/chat/${id}` as any);
+    } catch (e: any) {
+      if (/already|conflict/i.test(e.message || '')) {
+        setInviteCode('');
+        router.push(`/chat/${id}` as any);
+      } else {
+        setError(e.message);
+      }
     }
   }
 
@@ -497,6 +522,21 @@ async function handleChangePhoto() {
         {tab === 'groups' && (
           <>
             <Text style={s.headerTitle}>Groups</Text>
+            <View style={s.joinRow}>
+              <TextInput
+                style={[s.input, { flex: 1 }]}
+                placeholder="Paste invite link or room code…"
+                placeholderTextColor={c.textSecondary}
+                value={inviteCode}
+                onChangeText={setInviteCode}
+                autoCapitalize="none"
+                onSubmitEditing={handleJoinByCode}
+                returnKeyType="join"
+              />
+              <Pressable style={s.miniPrimary} onPress={handleJoinByCode}>
+                <Text style={s.miniPrimaryText}>Join</Text>
+              </Pressable>
+            </View>
             <FlatList
               data={discover}
               keyExtractor={(r) => r.id}
@@ -971,6 +1011,7 @@ function makeStyles(c: C) {
     primaryText: { color: '#fff', fontWeight: '800' },
     link: { color: c.primary, textAlign: 'center', marginTop: 6 },
     input: { borderWidth: 1, borderColor: c.border, backgroundColor: c.card, color: c.text, borderRadius: 10, padding: 10, fontSize: 15 },
+    joinRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
     tabbar: { backgroundColor: c.card, borderTopWidth: 1, borderTopColor: c.border },
     tabbarRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 },
     tabBtn: { alignItems: 'center', gap: 3, minWidth: 56 },
