@@ -187,11 +187,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         case 'read_ack': {
           if (data.id) {
-            set((s) => ({
-              messages: s.messages.map((m) =>
-                m.id === data.id ? { ...m, delivery_status: 'read' } : m
-              ),
-            }));
+            // Reader confirmed sight up to this message: mark all my messages
+            // at or before it as read so every tick turns green, not just one.
+            const toTs = (v: number | string | undefined): number => {
+              if (typeof v === 'number') return v;
+              const t = v ? Date.parse(v) : NaN;
+              return Number.isNaN(t) ? 0 : t;
+            };
+            set((s) => {
+              const acked = s.messages.find((m) => m.id === data.id);
+              const cutoff = acked ? toTs(acked.created_at) : Number.POSITIVE_INFINITY;
+              return {
+                messages: s.messages.map((m) =>
+                  m.is_me && toTs(m.created_at) <= cutoff ? { ...m, delivery_status: 'read' } : m,
+                ),
+              };
+            });
           }
           break;
         }

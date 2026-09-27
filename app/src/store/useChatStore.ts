@@ -16,6 +16,7 @@ export interface ChatMessage {
   translations?: Record<string, string> | null;
   detected_lang?: string;
   cultural_footnotes?: Footnotes | null;
+  delivery_status?: string;
   is_me: boolean;
   status: 'draft' | 'final';
   created_at?: number | string;
@@ -49,10 +50,17 @@ function normalize(data: any, myEmail: string, status: 'draft' | 'final'): ChatM
     translations: data.translations ?? null,
     detected_lang: data.detected_lang,
     cultural_footnotes: data.cultural_footnotes ?? null,
+    delivery_status: data.delivery_status ?? data.deliveryStatus ?? (status === 'draft' ? 'sent' : 'delivered'),
     is_me: data.sender_email === myEmail,
     status,
     created_at: data.created_at ?? Date.now(),
   };
+}
+
+function ts(v: number | string | undefined): number {
+  if (typeof v === 'number') return v;
+  const t = v ? Date.parse(v) : NaN;
+  return Number.isNaN(t) ? 0 : t;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -72,6 +80,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         translations: m.translations ?? null,
         detected_lang: m.detected_lang ?? m.detectedLang,
         cultural_footnotes: m.cultural_footnotes ?? m.culturalFootnotes ?? null,
+        delivery_status: m.delivery_status ?? m.deliveryStatus ?? 'delivered',
         is_me: m.is_me ?? m.sender_email === myEmail,
         status: 'final' as const,
         created_at: m.created_at ?? m.createdAt,
@@ -104,7 +113,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return;
       }
       if (data.type === 'read_ack' && data.id) {
-        set((s) => ({ messages: s.messages.map((m) => (m.id === data.id ? { ...m } : m)) }));
+        // Reader confirmed sight up to this message: mark all my messages
+        // at or before it as read (matches web bubble ticks).
+        set((s) => {
+          const acked = s.messages.find((m) => m.id === data.id);
+          const cutoff = acked ? ts(acked.created_at) : Number.POSITIVE_INFINITY;
+          return {
+            messages: s.messages.map((m) =>
+              m.is_me && ts(m.created_at) <= cutoff ? { ...m, delivery_status: 'read' } : m,
+            ),
+          };
+        });
         return;
       }
       if (data.type === 'message_deleted' && data.id) {

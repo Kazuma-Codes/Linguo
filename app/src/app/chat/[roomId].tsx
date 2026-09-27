@@ -48,9 +48,13 @@ export default function ChatRoom() {
   }, [roomId, token]);
 
   useEffect(() => {
-    const last = [...messages].reverse().find((m) => !m.is_me);
-    if (last && isConnected) sendReadAck(last.id);
-  }, [messages.length]);
+    // Acknowledge every unread incoming message (backend marks each one read,
+    // then broadcasts read_ack so the sender's ticks turn green).
+    if (!isConnected) return;
+    messages
+      .filter((m) => !m.is_me && m.status === 'final' && m.delivery_status !== 'read')
+      .forEach((m) => sendReadAck(m.id));
+  }, [messages.length, isConnected]);
 
   function handleDraft() {
     if (!text.trim()) return;
@@ -109,12 +113,12 @@ export default function ChatRoom() {
 
 function makeStyles(C: (typeof Colors)[keyof typeof Colors]) {
   return StyleSheet.create({
-    container: { flex: 1, padding: 12, backgroundColor: C.background, gap: 6 },
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+    container: { flex: 1, padding: 12, backgroundColor: C.chatBg, gap: 6 },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.chatBg },
     title: { fontSize: 16, fontWeight: '800', color: C.text },
     typing: { fontSize: 12, color: C.primary },
-    composer: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
-    input: { flex: 1, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, color: C.text, borderRadius: 12, padding: 10, fontSize: 15, maxHeight: 120 },
+    composer: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', backgroundColor: C.chatCard, padding: 8, borderRadius: 14, borderWidth: 1, borderColor: C.border },
+    input: { flex: 1, borderWidth: 1, borderColor: C.border, backgroundColor: C.backgroundElement, color: C.text, borderRadius: 12, padding: 10, fontSize: 15, maxHeight: 120 },
     send: { backgroundColor: C.primary, borderRadius: 12, padding: 12, alignItems: 'center' },
     sendText: { color: '#fff', fontWeight: '800' },
     hint: { fontSize: 10, opacity: 0.6, textAlign: 'center', color: C.text },
