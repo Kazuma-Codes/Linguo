@@ -7,6 +7,7 @@ import com.mosaic.model.dto.MessageResponse;
 import com.mosaic.model.dto.RoomCreateRequest;
 import com.mosaic.model.dto.RoomDetailResponse;
 import com.mosaic.model.dto.RoomResponse;
+import com.mosaic.model.dto.RoomUpdateRequest;
 import com.mosaic.model.entity.ChatParticipant;
 import com.mosaic.model.entity.ChatRoom;
 import com.mosaic.model.entity.Message;
@@ -339,6 +340,33 @@ public class RoomService {
                         .joinedAt(p.getJoinedAt())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Creator/admin-only group settings update (title, description, emoji).
+     * Only the room creator may change these; everyone else gets 403.
+     */
+    @Transactional
+    public RoomDetailResponse updateRoom(UUID roomId, RoomUpdateRequest request, User currentUser) {
+        ChatRoom room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
+
+        if (!room.getCreator().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the group creator can change settings");
+        }
+
+        if (request.getTitle() != null && !request.getTitle().isBlank()) {
+            room.setTitle(request.getTitle().trim());
+        }
+        if (request.getDescription() != null) {
+            room.setDescription(request.getDescription().trim());
+        }
+        if (request.getEmoji() != null && !request.getEmoji().isBlank()) {
+            room.setEmoji(request.getEmoji().trim());
+        }
+        roomRepository.save(room);
+
+        return getRoom(roomId, currentUser);
     }
 
     @Transactional

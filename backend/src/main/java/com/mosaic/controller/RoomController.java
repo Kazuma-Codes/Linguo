@@ -29,6 +29,15 @@ public class RoomController {
         return roomService.createRoom(request, currentUser);
     }
 
+    @PatchMapping("/rooms/{roomId}")
+    public RoomDetailResponse updateRoom(
+            @PathVariable UUID roomId,
+            @RequestBody RoomUpdateRequest request,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        return roomService.updateRoom(roomId, request, currentUser);
+    }
+
     @PostMapping("/rooms/direct/{targetUserId}")
     public RoomResponse getOrCreateDirectRoom(
             @PathVariable UUID targetUserId,
