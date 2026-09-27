@@ -290,13 +290,12 @@ export default function HomePage() {
     }
   };
 
-  const handleCreateGroup = async (data: { title: string; description: string; emoji: string; is_private: boolean }) => {
+  const handleCreateGroup = async (data: { title: string; description: string; is_private: boolean }) => {
     if (!token) return;
     try {
       const myLang = user?.preferred_language || 'en';
       const room = await createRoom(token, data.title, myLang, 'es', {
         description: data.description,
-        emoji: data.emoji,
         is_private: data.is_private,
       });
       await loadAllData();
@@ -431,7 +430,7 @@ export default function HomePage() {
     }
   };
 
-  const handleSaveGroupSettings = async (data: { title: string; description: string; emoji: string; avatarUrl: string }) => {
+  const handleSaveGroupSettings = async (data: { title: string; description: string; avatarUrl: string }) => {
     if (!token || !activeRoomId) return;
     const updated = await updateRoom(token, activeRoomId, data);
     setActiveRoomDetail(updated);

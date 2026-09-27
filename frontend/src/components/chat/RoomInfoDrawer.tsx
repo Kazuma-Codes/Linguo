@@ -47,7 +47,6 @@ export function RoomInfoDrawer({
   roomId,
   title,
   description,
-  emoji,
   avatarUrl,
   members,
   distinctLangs,
