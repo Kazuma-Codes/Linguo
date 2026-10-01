@@ -41,11 +41,19 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
 
+logging:
+  level:
+    root: INFO
+    com.mosaic: INFO
+    com.zaxxer.hikari: INFO
+    org.postgresql: INFO
+    org.springframework.web: INFO
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics
+        include: health,info,prometheus,metrics,loggers
   endpoint:
     health:
       show-details: never

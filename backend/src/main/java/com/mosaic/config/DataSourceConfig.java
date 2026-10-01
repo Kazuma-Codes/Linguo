@@ -46,6 +46,11 @@ public class DataSourceConfig {
                 String userInfo = uri.getUserInfo();
 
                 String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + path + (query != null && !query.isBlank() ? "?" + query : "");
+
+                // Supavisor transaction pooler on port 6543 requires prepareThreshold=0 for Hibernate / JPA
+                if (port == 6543 && !jdbcUrl.contains("prepareThreshold")) {
+                    jdbcUrl += (jdbcUrl.contains("?") ? "&" : "?") + "prepareThreshold=0";
+                }
                 config.setJdbcUrl(jdbcUrl);
 
                 if (userInfo != null && userInfo.contains(":")) {
@@ -59,7 +64,7 @@ public class DataSourceConfig {
                     config.setUsername(defaultUser);
                     config.setPassword(defaultPassword);
                 }
-                log.info("Configured PostgreSQL DataSource connecting to host={}:{}, database={}", host, port, path);
+                log.info("Configured PostgreSQL DataSource: target host={}:{}, database={}, user={}", host, port, path, config.getUsername());
             } catch (Exception e) {
                 throw new IllegalStateException("Invalid PostgreSQL datasource URL", e);
             }
@@ -71,14 +76,38 @@ public class DataSourceConfig {
             config.setJdbcUrl(rawUrl);
             config.setUsername(defaultUser);
             config.setPassword(defaultPassword);
-            log.info("Configured PostgreSQL DataSource using configured JDBC URL");
+            log.info("Configured PostgreSQL DataSource using configured JDBC URL: {}", rawUrl.replaceAll(":[^/@]+@", ":****@"));
         }
 
         config.setMaximumPoolSize(10);
         config.setMinimumIdle(2);
         config.setConnectionTimeout(30000);
         config.setValidationTimeout(5000);
-        return new HikariDataSource(config);
+
+        try {
+            return new HikariDataSource(config);
+        } catch (Exception e) {
+            String fullErr = e.toString();
+            Throwable cause = e.getCause();
+            while (cause != null) {
+                fullErr += " " + cause.toString();
+                cause = cause.getCause();
+            }
+
+            if (fullErr.contains("tenant/user") && fullErr.contains("not found")) {
+                log.error("================================================================================");
+                log.error("DATABASE CONNECTION ERROR: Supabase tenant/user not found!");
+                log.error("Common causes and fixes:");
+                log.error("1. SUPABASE PROJECT IS PAUSED: Inactivity on free tier pauses the database.");
+                log.error("   -> Go to https://supabase.com/dashboard and click 'Restore project'.");
+                log.error("2. WRONG POOLER HOST OR REGION: Check Project Settings > Database > Connection Pooling.");
+                log.error("   -> Ensure the pooler domain matches your project region (e.g. aws-0-[region].pooler.supabase.com).");
+                log.error("3. MISMATCHED USERNAME: When using the pooler, the user must be postgres.[PROJECT_REF].");
+                log.error("   -> When connecting directly (db.[PROJECT_REF].supabase.co), the user must be just 'postgres'.");
+                log.error("================================================================================");
+            }
+            throw e;
+        }
     }
 
     private void requireCredentials() {

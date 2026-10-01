@@ -480,13 +480,19 @@ export function ProfileModal({
       </div>
 
       {/* Edit Avatar Modal */}
+      {
+        showAvatarModal && (
+
+
       <EditAvatarModal
         isOpen={showAvatarModal}
         onClose={() => setShowAvatarModal(false)}
-        currentAvatarUrl={avatarUrl || user.avatar_url}
+        currentAvatarUrl={avatarUrl || user.avatar_url || ''}
+
         name={username || user.email}
         onSaveAvatar={handleSaveAvatarDirect}
       />
+          )}
     </>
   );
 }

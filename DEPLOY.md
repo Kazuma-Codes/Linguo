@@ -34,7 +34,16 @@ require guaranteed availability or strict latency objectives.
 
 1. Go to https://neon.tech or https://supabase.com
 2. Create a new database project
-3. Copy the Connection URI (starts with `postgresql://...`)
+3. Copy the Connection URI (starts with `postgresql://...`):
+   - **Neon (Easiest)**: Copy the pooled connection string directly from the Neon dashboard.
+   - **Supabase**: Render Free Tier requires IPv4, so you must use the **Connection Pooler (Supavisor)**:
+     - Go to **Project Settings** → **Database** → **Connection Pooling**
+     - Select **Session** (Port 5432, recommended) or **Transaction** (Port 6543)
+     - Copy the **URI** format: `postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres`
+     - *Note*: If you see `FATAL: (ENOTFOUND) tenant/user postgres.[REF] not found`:
+       1. Check if the project is **Paused** in Supabase dashboard (free tier pauses after 7 days of inactivity; click **Restore**).
+       2. Ensure the pooler region in the host (`aws-0-[REGION].pooler.supabase.com`) matches your database's actual region.
+
 
 ---
 

@@ -1,3 +1,4 @@
+// allows user to personalize the account like adding image of both the individual and group
 "use client";
 
 import React, { useState, useRef } from 'react';
@@ -9,7 +10,7 @@ import { AVATAR_PRESETS } from '@/lib/avatarPresets';
 interface EditAvatarModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentAvatarUrl?: string;
+  currentAvatarUrl?: string| null;
   name: string;
   onSaveAvatar: (newAvatarUrl: string) => void;
 }
@@ -21,10 +22,11 @@ export function EditAvatarModal({
   name,
   onSaveAvatar,
 }: EditAvatarModalProps) {
+  const safeCurrentUrl = currentAvatarUrl || '';
   const [activeTab, setActiveTab] = useState<'upload' | 'presets' | 'url'>('upload');
-  const [selectedAvatar, setSelectedAvatar] = useState<string>(currentAvatarUrl);
-  const [urlInput, setUrlInput] = useState<string>(currentAvatarUrl.startsWith('http') ? currentAvatarUrl : '');
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const[selectedAvatar,setSelectedAvatar] = useState<string>(safeCurrentUrl);
+  const [urlInput,setUrlInput] = useState<string>(safeCurrentUrl.startsWith('http') ? safeCurrentUrl: '');
   const [pendingSrc, setPendingSrc] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 

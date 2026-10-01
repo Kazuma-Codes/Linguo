@@ -11,7 +11,7 @@ CREATE TABLE chat_rooms (
     id UUID PRIMARY KEY,
     title VARCHAR(255),
     source_lang VARCHAR(255) NOT NULL DEFAULT 'en',
-    target_lang VARCHAR(255) NOT NULL DEFAULT 'es',
+    target_lang VARCHAR(255) NOT NULL DEFAULT 'en',
     creator_id UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMP(6) WITH TIME ZONE NOT NULL
 );

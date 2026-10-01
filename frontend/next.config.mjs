@@ -13,12 +13,13 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com",
-      "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+      "style-src 'self' 'unsafe-inline' https://accounts.google.com https://fonts.googleapis.com" ,
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",
       "connect-src 'self' https: wss: https://accounts.google.com",
       "frame-src https://accounts.google.com",
-      "font-src 'self' data:",
+        // defines where the font can be found or fetched
+      "font-src 'self' data: https://fonts.gstatic.com",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
