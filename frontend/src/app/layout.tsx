@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Mosaic — Cross Language Translation',
   description: 'Real-time cross-language translation chat app with AI',
+  verification: {
+    google: 'e7yu-GnOKALPszHtrlBONap6-sk9d-s8DDqCpQo6NDI',
+  },
 };
 
 /** Root layout — wraps every page with the global font and dark theme background. */
