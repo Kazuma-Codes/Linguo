@@ -6,6 +6,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 /** App-wide metadata — title and description shown in the browser tab. */
 export const metadata: Metadata = {
+  metadataBase: new URL('https://mosa1c.vercel.app'),
   title: 'Mosaic — Cross Language Translation',
   description: 'Real-time cross-language translation chat app with AI',
   verification: {
