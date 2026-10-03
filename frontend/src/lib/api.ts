@@ -290,3 +290,22 @@ export async function declineContactRequest(token: string, requestId: string) {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+/** Leave a group room. Admin must transfer ownership first (403 otherwise). */
+export async function leaveRoom(token: string, roomId: string) {
+  return apiFetch(`/rooms/${roomId}/leave`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function transferAdmin(token:string,roomId:string,newAdminId:string){
+  return apiFetch(`/rooms/${roomId}/transfer`, {
+    method :'POST',
+    headers:{
+    'Content-Type' : 'application/json',
+    Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({newAdminId}),
+  });
+}
