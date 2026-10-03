@@ -235,7 +235,7 @@ public class AuthService {
         UserResponse res = UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
-                .username(user.getUsername() != null ? user.getUsername() : user.getEmail().split("@")[0])
+                .username(user.displayName())
                 .avatarUrl(user.getAvatarUrl())
                 .about(user.getAbout())
                 .phone(user.getPhone())
