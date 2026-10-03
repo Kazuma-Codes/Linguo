@@ -291,13 +291,8 @@ public class ChatService {
     @Transactional
     public void processTranslationAsync(UUID messageId) {
         try {
-            Message msg = null;
-            for (int i = 0; i < 3; i++) {
-                msg = messageRepository.findById(messageId).orElse(null);
-                if (msg != null) break;
-                Thread.sleep(50);
-            }
-
+            // Runs from afterCommit — the row is already committed and visible; no retry needed.
+            Message msg = messageRepository.findById(messageId).orElse(null);
             if (msg == null) {
                 log.warn("Message {} not found for async translation", messageId);
                 return;
