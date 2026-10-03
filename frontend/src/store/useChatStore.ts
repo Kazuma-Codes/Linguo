@@ -77,7 +77,6 @@ interface ChatState {
 
   sendDraft: (text: string, extra?: { reply_to_id?: string; attachment_url?: string; attachment_name?: string; attachment_size?: number; message_type?: string }) => void;
   confirmDraft: (id: string, editedText: string) => void;
-  sendMessage: (text: string, extra?: { reply_to_id?: string; attachment_url?: string; attachment_name?: string; attachment_size?: number; message_type?: string }) => void;
   sendTyping: (isTyping: boolean) => void;
   sendReadAck: (messageId: string) => void;
   deleteMessage: (messageId: string) => void;
@@ -89,7 +88,7 @@ let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 const MAX_RECONNECT_ATTEMPTS = 6;
 let reconnectAttempts = 0;
 
-function isSafeHttpUrl(url?: string | null): boolean {
+export function isSafeHttpUrl(url?: string | null): boolean {
   if (!url) return false;
   const trimmed = url.trim();
   if (trimmed.length === 0 || trimmed.length > 2048 || trimmed.includes(' ')) return false;
@@ -353,26 +352,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const ws = get().ws;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'confirm_draft', id, edited_text: editedText }));
-    }
-  },
-
-  sendMessage: (text, extra) => {
-    // Enforced Draft→Confirm: legacy quick-send now routes through AI translation
-    // so receivers always get their Settings default language + footnotes.
-    const ws = get().ws;
-    if (ws?.readyState === WebSocket.OPEN) {
-      const attachment_url = sanitizeAttachment(extra?.attachment_url);
-      if (extra?.attachment_url && !attachment_url && !text?.trim()) return;
-      ws.send(JSON.stringify({
-        type: 'send_draft',
-        text,
-        reply_to_id: extra?.reply_to_id,
-        attachment_url,
-        attachment_name: attachment_url ? extra?.attachment_name : undefined,
-        attachment_size: attachment_url ? extra?.attachment_size : undefined,
-        message_type: extra?.message_type ?? 'text',
-      }));
-      set({ replyTo: null });
     }
   },
 

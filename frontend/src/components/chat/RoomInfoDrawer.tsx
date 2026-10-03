@@ -20,7 +20,6 @@ interface RoomInfoDrawerProps {
   roomId: string;
   title: string;
   description?: string;
-  emoji?: string;
   avatarUrl?: string;
   members: MemberInfo[];
   distinctLangs: string[];

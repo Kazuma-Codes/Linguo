@@ -1029,10 +1029,6 @@ export default function HomePage() {
               isConnected={isConnected}
               replyTo={replyTo}
               onCancelReply={() => setReplyTo(null)}
-              onSend={(text, extra) => {
-                sendDraft(text, extra);
-                showToast('✨ Translating with Groq AI...');
-              }}
               onDraft={(text, extra) => {
                 sendDraft(text, extra);
                 showToast('✨ Translating with Groq AI...');

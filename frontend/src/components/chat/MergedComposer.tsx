@@ -9,7 +9,6 @@ interface MergedComposerProps {
   isConnected: boolean;
   replyTo: Message | null;
   onCancelReply: () => void;
-  onSend: (text: string, extra?: { reply_to_id?: string; attachment_url?: string; attachment_name?: string; attachment_size?: number; message_type?: string }) => void;
   onDraft: (text: string, extra?: { reply_to_id?: string; attachment_url?: string; attachment_name?: string; attachment_size?: number; message_type?: string }) => void;
   onTyping: (isTyping: boolean) => void;
 }
@@ -21,7 +20,6 @@ export function MergedComposer({
   isConnected,
   replyTo,
   onCancelReply,
-  onSend,
   onDraft,
   onTyping,
 }: MergedComposerProps) {
