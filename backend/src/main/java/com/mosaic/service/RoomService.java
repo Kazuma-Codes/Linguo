@@ -405,7 +405,7 @@ public class RoomService {
     }
 
     @Transactional
-    // ponytail: link-known = invited; add left-members/ban table if rejoin abuse matters
+    // allows the user to leave group chat with some rules
     public void leaveRoom(UUID roomId,User currentUser){
         ChatRoom room = roomRepository.findById(roomId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND,"room not found"));
@@ -434,9 +434,6 @@ public class RoomService {
 
     @Transactional
     public  RoomDetailResponse transferAdmin(UUID roomId,UUID newAdminId,User currentUser){
-        if (newAdminId == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"newAdminId is required");
-        }
         ChatRoom room = roomRepository.findById(roomId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND,"room not found"));
 
@@ -451,7 +448,7 @@ public class RoomService {
                 new ResponseStatusException(HttpStatus.NOT_FOUND,"target user not found"));
 
         if(!participantRepository.existsByRoomIdAndUserId(roomId,newAdminId)){
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"New admin must be a room member");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"new admin muse be in the room");
         }
 
         room.setCreator(newAdmin);

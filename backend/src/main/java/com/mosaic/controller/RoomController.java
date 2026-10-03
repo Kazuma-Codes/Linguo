@@ -77,10 +77,10 @@ public class RoomController {
     @PostMapping("/rooms/{roomId}/transfer")
     public RoomDetailResponse transferAdmin(
             @PathVariable UUID roomId,
-            @RequestBody Map<String, UUID> body,
+            @RequestBody TransferAdminRequest request,
             @AuthenticationPrincipal User currentUser
     ) {
-        return roomService.transferAdmin(roomId, body.get("newAdminId"), currentUser);
+        return roomService.transferAdmin(roomId, request.getNewAdminId(), currentUser);
     }
 
     @GetMapping("/rooms/{roomId}")

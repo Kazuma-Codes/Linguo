@@ -384,15 +384,6 @@ export default function ChatRoomPage() {
         description="You will be returned to your dashboard."
       />
 
-      <LogoutConfirmModal
-        isOpen={showLeaveConfirm}
-        onClose={() => setShowLeaveConfirm(false)}
-        onConfirm={handleConfirmLeave}
-        title="Leave this group?"
-        description="You will be removed from the room. A member can invite you back later."
-        confirmLabel="Leave"
-      />
-
       {/* Room Details Drawer */}
       <RoomInfoDrawer
         isOpen={showDetailsDrawer}
@@ -412,8 +403,7 @@ export default function ChatRoomPage() {
         isAdmin={!!user && !!roomDetail?.creator_id && roomDetail.creator_id === user.id}
         creatorId={roomDetail?.creator_id}
         onSaveSettings={handleSaveGroupSettings}
-        onLeaveRoom={roomDetail?.room_type === 'direct' ? undefined : () => setShowLeaveConfirm(true)}
-        onTransferAdmin={handleTransferAdmin}
+        onLeaveRoom={() => router.push('/')}
       />
 
       {/* User detail popup (DM avatar tap / roster tap) */}
