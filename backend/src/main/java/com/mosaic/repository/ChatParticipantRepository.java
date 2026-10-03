@@ -28,4 +28,10 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     boolean existsByRoomIdAndUserId(UUID roomId, UUID userId);
 
     long countByRoomId(UUID roomId);
+    // delete a participant from a chat room using hte userid and room id
+    @Modifying
+    @Query("DELETE FROM ChatParticipant p WHERE p.room.id = :roomId AND p.user.id = :userId")
+    void deleteByRoomIdAndUserId(
+            @Param("roomId") UUID roomId,
+            @Param("userId") UUID userId);
 }

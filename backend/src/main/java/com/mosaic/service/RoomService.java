@@ -403,6 +403,9 @@ public class RoomService {
         return getRoom(roomId, currentUser);
     }
 
+
+
+
     private RoomResponse toRoomResponse(ChatRoom room, User currentUser) {
         String displayTitle = room.getTitle();
         String displayAvatar = room.getAvatarUrl();
