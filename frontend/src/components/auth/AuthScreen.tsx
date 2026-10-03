@@ -1,7 +1,7 @@
 "use client";
 
-import Image from 'next/image';
 import { useEffect, useRef } from 'react';
+import { Icons } from '@/lib/icons';
 
 declare global {
   interface Window {
@@ -103,22 +103,15 @@ export function AuthScreen({
         className="absolute top-5 right-6 z-30 p-2.5 rounded-full border border-[var(--border)] bg-[var(--card)] hover:opacity-80 text-[var(--text)] transition-all shadow-sm flex items-center justify-center cursor-pointer"
       >
         {theme === 'dark' ? (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          <Icons.sun className="w-[18px] h-[18px]" />
         ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          <Icons.moon className="w-[18px] h-[18px]" />
         )}
       </button>
 
       {/* LEFT ART PANEL (Editorial Style) */}
       <aside className="relative hidden lg:block overflow-hidden bg-[#1C1917]">
-        <Image
-          src="/auth-art.png"
-          alt="People around the world greeting each other in many languages"
-          fill
-          priority
-          sizes="(min-width: 1024px) 50vw, 0px"
-          className="w-full h-full object-cover select-none pointer-events-none"
-        />
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600" />
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
@@ -142,10 +135,7 @@ export function AuthScreen({
           {/* Brand Header */}
           <div className="flex items-center gap-3 mb-10">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-cyan-400 flex items-center justify-center text-white shadow-md">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                <path d="M8 10h.01M12 10h.01M16 10h.01"/>
-              </svg>
+              <Icons.chat className="w-[22px] h-[22px]" />
             </div>
             <span className="font-bold text-2xl tracking-tight text-[var(--text)]">Mosaic</span>
           </div>
