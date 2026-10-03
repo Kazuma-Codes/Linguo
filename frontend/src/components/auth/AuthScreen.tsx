@@ -134,9 +134,11 @@ export function AuthScreen({
         <div className="w-full max-w-md mx-auto">
           {/* Brand Header */}
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-cyan-400 flex items-center justify-center text-white shadow-md">
-              <Icons.chat className="w-[22px] h-[22px]" />
-            </div>
+            <img
+              src="/icon.png"
+              alt="Mosaic Logo"
+              className="h-9 w-auto max-w-[40px] object-contain shrink-0"
+            />
             <span className="font-bold text-2xl tracking-tight text-[var(--text)]">Mosaic</span>
           </div>
 
