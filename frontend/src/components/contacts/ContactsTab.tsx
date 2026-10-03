@@ -118,7 +118,6 @@ export function ContactsTab({
         {activeSubTab === 'requests' ? (
           requests.length === 0 ? (
             <div className="text-center py-12 text-[var(--muted)] space-y-2">
-              <span className="text-3xl block">💌</span>
               <p className="text-xs font-medium">No pending contact requests</p>
             </div>
           ) : (

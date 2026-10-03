@@ -251,7 +251,7 @@ export default function HomePage() {
       setAuth(data.access_token, userData);
       setEmail('');
       setPassword('');
-      showToast('✨ Welcome to Linguo!');
+      showToast('✨ Welcome to Mosaic!');
     } catch (err: any) {
       setAuthError(err.message || 'Google sign-in failed. Please try again.');
     } finally {
@@ -286,7 +286,7 @@ export default function HomePage() {
       setAuth(accessToken, userData);
       setEmail('');
       setPassword('');
-      showToast('✨ Welcome to Linguo!');
+      showToast('✨ Welcome to Mosaic!');
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed. Please check credentials.');
     } finally {
@@ -471,7 +471,7 @@ export default function HomePage() {
       setActiveRoomId(null);
       setActiveRoomDetail(null);
       await loadAllData();
-      showToast('👋 Left conversation');
+      showToast('Left conversation');
     } catch (err: any) {
       showToast(err.message || 'Failed to leave room');
     }
@@ -484,7 +484,7 @@ export default function HomePage() {
       setActiveRoomDetail(updated);
       if (updated.members) setRoomMembers(updated.members);
       await loadAllData();
-      showToast('👑 Admin transferred');
+      showToast('Admin transferred');
     } catch (err: any) {
       showToast(err.message || 'Failed to transfer admin');
     }
@@ -496,7 +496,7 @@ export default function HomePage() {
       <div className="flex items-center justify-center min-h-screen bg-[var(--bg)] text-[var(--muted)]">
         <div className="flex items-center gap-3">
           <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          <span>Loading Linguo...</span>
+          <span>Loading Mosaic...</span>
         </div>
       </div>
     );
@@ -682,7 +682,7 @@ export default function HomePage() {
             onReplaySkeletons={() => {
               setIsReplayingSkeletons(true);
               setActiveTab('chats');
-              showToast('⏳ Replaying loading skeleton animations...');
+              showToast('Replaying loading skeleton animations...');
               setTimeout(() => setIsReplayingSkeletons(false), 2000);
             }}
             onResetDemoData={() => {
@@ -777,7 +777,6 @@ export default function HomePage() {
                 </div>
               ) : rooms.length === 0 ? (
                 <div className="text-center py-16 text-[var(--muted)] space-y-3">
-                  <span className="text-4xl block">💬</span>
                   <p className="text-sm font-medium">No conversations yet</p>
                   <button
                     onClick={() => setShowCreateGroupModal(true)}
@@ -857,15 +856,11 @@ export default function HomePage() {
         {!activeRoomId ? (
           /* Empty State when no conversation is selected */
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-4">
-            <div className="w-20 h-20 rounded-3xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center text-4xl shadow-md">
-              💬
-            </div>
+
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-[var(--text)] font-serif-display">
-                Select a conversation
-              </h2>
+
               <p className="text-sm text-[var(--muted)] max-w-sm mt-1">
-                Chat in your native language — messages are automatically translated for everyone in real-time with Groq AI.
+                Chat in your native language
               </p>
             </div>
             <div className="flex items-center gap-3 pt-2">
@@ -983,9 +978,8 @@ export default function HomePage() {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-2 min-h-0">
               {messages.length === 0 && drafts.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-[var(--muted)] py-16 space-y-2">
-                  <span className="text-4xl">👋</span>
                   <p className="font-medium text-sm">
-                    No messages yet — start typing in {currentSeatName} 👋
+                    No messages yet — start typing in {currentSeatName}
                   </p>
                 </div>
               ) : null}
@@ -1031,7 +1025,6 @@ export default function HomePage() {
               onCancelReply={() => setReplyTo(null)}
               onDraft={(text, extra) => {
                 sendDraft(text, extra);
-                showToast('✨ Translating with Groq AI...');
               }}
               onTyping={(isTyping) => sendTyping(isTyping)}
             />

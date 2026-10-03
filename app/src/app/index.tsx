@@ -195,7 +195,7 @@ export default function Home() {
           show_online: me.show_online,
           read_receipts: me.read_receipts,
         });
-        showToast('✨ Welcome to Linguo!');
+        showToast('Welcome to Mosaic!');
       } catch (e: any) {
         setError(e.message || 'Google sign-in failed');
       } finally {
@@ -273,7 +273,7 @@ export default function Home() {
       }
       setEmail('');
       setPassword('');
-      showToast('✨ Welcome to Linguo!');
+      showToast('Welcome to Mosaic!');
     } catch (e: any) {
       setError(e.message || 'Authentication failed. Please check credentials.');
     } finally {
@@ -289,7 +289,7 @@ export default function Home() {
         is_private: data.is_private,
       });
       await load();
-      showToast(`✨ Group "${data.title}" created`);
+      showToast(`Group "${data.title}" created`);
       setTab('chats');
       router.push(`/chat/${room.id}` as any);
     } catch (e: any) {
@@ -371,7 +371,7 @@ export default function Home() {
       if (accept) await acceptContactRequest(token, id);
       else await declineContactRequest(token, id);
       await load();
-      showToast(accept ? '🤝 Connection request accepted' : 'Request declined');
+      showToast(accept ? 'Connection request accepted' : 'Request declined');
     } catch (e: any) {
       setError(e.message);
     }
@@ -475,7 +475,7 @@ export default function Home() {
     return (
       <SafeAreaView style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, { backgroundColor: c.background }]}>
         <ActivityIndicator color={c.primary} />
-        <Text style={{ color: c.textSecondary, marginTop: 8 }}>Loading Linguo...</Text>
+        <Text style={{ color: c.textSecondary, marginTop: 8 }}>Loading Mosaic...</Text>
       </SafeAreaView>
     );
   }
@@ -735,7 +735,7 @@ export default function Home() {
             )}
             {contactsSub === 'requests' ? (
               requests.length === 0 ? (
-                <Text style={s.empty}>💌 No pending contact requests</Text>
+                <Text style={s.empty}>No pending contact requests</Text>
               ) : (
                 <FlatList
                   data={requests}
@@ -873,7 +873,6 @@ export default function Home() {
                 )}
                 ListEmptyComponent={
                   <View style={s.emptyWrap}>
-                    <Text style={s.emptyEmoji}>🌐</Text>
                     <Text style={[s.emptyTitle, { color: c.textSecondary }]}>You have not joined any group rooms yet</Text>
                     <Pressable onPress={() => setGroupsSub('discover')}>
                       <Text style={[s.emptyLink, { color: c.primary }]}>Browse public rooms · Create a new group</Text>
@@ -1031,7 +1030,7 @@ export default function Home() {
                 onPress={() => {
                   setIsReplayingSkeletons(true);
                   setTab('chats');
-                  showToast('⏳ Replaying loading skeleton animations...');
+                  showToast('Replaying loading skeleton animations...');
                   load();
                   setTimeout(() => setIsReplayingSkeletons(false), 2000);
                 }}
@@ -1108,7 +1107,7 @@ export default function Home() {
                     </Pressable>
                     <Text style={s.profileName}>{user.username || myName}</Text>
                     <Text style={s.sub}>{user.email}</Text>
-                    <Text style={s.bio}>{user.about || 'Hey there! I am using Linguo.'}</Text>
+                    <Text style={s.bio}>{user.about || 'Hey there! I am using Mosaic.'}</Text>
                     <View style={s.statsRow}>
                       <View style={s.statPill}>
                         <Text style={s.statNum}>{rooms.length}</Text>
@@ -1368,8 +1367,8 @@ export default function Home() {
                 onPress={() => {
                   setShowResetConfirm(false);
                   load();
-                  setDemoMsg('✨ Data reloaded from server.');
-                  showToast('✨ Demo data restored');
+                  setDemoMsg('Data reloaded from server.');
+                  showToast('Demo data restored');
                 }}
               >
                 <Text style={[stylesModal.btnText, { color: '#fff' }]}>Reset</Text>
