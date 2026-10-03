@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useThemeStore } from '@/store/useThemeStore';
-import { getRoom, getRoomMessages, getMembers, getOrCreateDirectRoom, updateRoom } from '@/lib/api';
+import { getRoom, getRoomMessages, getMembers, getOrCreateDirectRoom, updateRoom, leaveRoom, transferAdmin } from '@/lib/api';
 import { MergedMessageBubble } from '@/components/chat/MergedMessageBubble';
 import { MergedComposer } from '@/components/chat/MergedComposer';
 import { ChatDraftPreview } from '@/components/chat/ChatDraftPreview';
@@ -51,6 +51,7 @@ export default function ChatRoomPage() {
   const [members, setMembers] = useState<MemberInfo[]>([]);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDetailsDrawer, setShowDetailsDrawer] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -155,6 +156,31 @@ export default function ChatRoomPage() {
     disconnect();
     logout();
     router.push('/');
+  };
+
+  const handleConfirmLeave = async () => {
+    if (!token) return;
+    try {
+      await leaveRoom(token, roomId);
+      setShowLeaveConfirm(false);
+      setShowDetailsDrawer(false);
+      disconnect();
+      router.push('/');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to leave room');
+    }
+  };
+
+  const handleTransferAdmin = async (newAdminId: string) => {
+    if (!token) return;
+    try {
+      const updated = await transferAdmin(token, roomId, newAdminId);
+      setRoomDetail(updated);
+      if (updated.members) setMembers(updated.members);
+      showToast('👑 Admin transferred');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to transfer admin');
+    }
   };
 
   const handleOpenDirectChat = async (targetUserId: string) => {

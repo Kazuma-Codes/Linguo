@@ -16,6 +16,8 @@ import {
   listDiscoverableRooms,
   getRoom,
   getRoomMessages,
+  leaveRoom,
+  transferAdmin,
   getMembers,
   updateRoom,
   updatePreferredLanguage,
@@ -458,6 +460,35 @@ export default function HomePage() {
     showToast('⚙️ Group settings saved');
     await loadAllData();
   };
+  const handleConfirmLeave = async () => {
+    if (!token || !activeRoomId) return;
+    try {
+      await leaveRoom(token, activeRoomId);
+      setShowLeaveConfirm(false);
+      setShowInfoDrawer(false);
+      disconnect();
+      setActiveRoomId(null);
+      setActiveRoomDetail(null);
+      await loadAllData();
+      showToast('👋 Left conversation');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to leave room');
+    }
+  };
+
+  const handleTransferAdmin = async (newAdminId: string) => {
+    if (!token || !activeRoomId) return;
+    try {
+      const updated = await transferAdmin(token, activeRoomId, newAdminId);
+      setActiveRoomDetail(updated);
+      if (updated.members) setRoomMembers(updated.members);
+      await loadAllData();
+      showToast('👑 Admin transferred');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to transfer admin');
+    }
+  };
+
 
   if (!hasHydrated) {
     return (
@@ -1094,10 +1125,8 @@ export default function HomePage() {
           isAdmin={!!user && !!activeRoomDetail?.creator_id && activeRoomDetail.creator_id === user.id}
           creatorId={activeRoomDetail?.creator_id}
           onSaveSettings={handleSaveGroupSettings}
-          onLeaveRoom={() => {
-            setShowInfoDrawer(false);
-            setActiveRoomId(null);
-          }}
+          onLeaveRoom={activeRoomDetail?.room_type === 'direct' ? undefined : () => setShowLeaveConfirm(true)}
+          onTransferAdmin={handleTransferAdmin}
         />
       )}
 

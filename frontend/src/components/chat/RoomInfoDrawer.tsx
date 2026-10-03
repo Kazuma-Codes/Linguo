@@ -39,6 +39,8 @@ interface RoomInfoDrawerProps {
   creatorId?: string;
   /** Persist group title/description/avatar (creator only). */
   onSaveSettings?: (data: { title: string; description: string; avatarUrl: string }) => Promise<void>;
+  /** Promote another member to admin (admin only, groups only). */
+  onTransferAdmin?: (userId: string) => Promise<void> | void;
 }
 
 export function RoomInfoDrawer({
