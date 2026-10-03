@@ -60,16 +60,6 @@ interface ChatState {
       message_type?: string;
     },
   ) => void;
-  sendMessage: (
-    text: string,
-    extra?: {
-      reply_to_id?: string;
-      attachment_url?: string;
-      attachment_name?: string;
-      attachment_size?: number;
-      message_type?: string;
-    },
-  ) => void;
   confirmDraft: (id: string, editedText: string) => void;
   sendTyping: (isTyping: boolean) => void;
   sendReadAck: (messageId: string) => void;
@@ -299,10 +289,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
       set({ replyTo: null });
     }
-  },
-  sendMessage: (text, extra) => {
-    // Enforced Draft→Confirm like web: route through AI translation
-    get().sendDraft(text, extra);
   },
   confirmDraft: (id, editedText) => {
     if (ws?.readyState === WebSocket.OPEN) {

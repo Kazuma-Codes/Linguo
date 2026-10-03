@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Message } from '@/store/useChatStore';
+import { Message, isSafeHttpUrl } from '@/store/useChatStore';
 import { CulturalFootnotes } from '@/components/chat/CulturalFootnotes';
 import { MergedAvatar } from '@/components/common/MergedAvatar';
 import { Icons } from '@/lib/icons';
@@ -23,15 +23,6 @@ function formatTime(timestamp?: number | string) {
   const date = new Date(timestamp);
   if (isNaN(date.getTime())) return '';
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-/** Allowlist for user-supplied attachment URLs: http(s) only, no spaces. */
-function isSafeHttpUrl(url?: string | null): boolean {
-  if (!url) return false;
-  const trimmed = url.trim();
-  if (trimmed.length === 0 || trimmed.length > 2048 || trimmed.includes(' ')) return false;
-  const lower = trimmed.toLowerCase();
-  return lower.startsWith('https://') || lower.startsWith('http://');
 }
 
 function openAttachmentSafely(url?: string | null) {
