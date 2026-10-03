@@ -562,14 +562,15 @@ export default function HomePage() {
         <div className="space-y-6">
           {/* Top: Brand Logo */}
           <div className="flex items-center gap-3 px-3 py-1">
-            <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-lg shadow-sm">
-              <Icons.chat className="w-5 h-5 text-white" />
-            </div>
+            <img
+                src="icon.png"
+                alt="Logo"
+                className="w-9 h-9 rounded-xl object-contain"
+            />
             <span className="text-xl font-bold tracking-tight text-[var(--text)]">
-              halo<span className="text-blue-600">.</span>
-            </span>
+    Mosaic
+  </span>
           </div>
-
           {/* Navigation Links */}
           <div className="space-y-1">
             {/* Chats */}
