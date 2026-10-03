@@ -58,7 +58,9 @@ require guaranteed availability or strict latency objectives.
    - **Instance Type:** Free
 4. Add Environment Variables:
    ```
-   DATABASE_URL          = [paste your PostgreSQL URL from Step 3]
+   DATABASE_URL          = jdbc:postgresql://<host>:5432/<db>?sslmode=require   (JDBC form of the Render Postgres URL)
+   DATABASE_USERNAME     = [Render Postgres username]
+   DATABASE_PASSWORD     = [Render Postgres password]
    REDIS_URL             = [paste your REDIS_URL from Step 2]
    GROQ_API_KEY          = [paste your Groq API key from Step 1]
    SECRET_KEY            = [generate a random 32+ char string]
@@ -69,9 +71,8 @@ require guaranteed availability or strict latency objectives.
 
 The `render.yaml` uses `backend/Dockerfile` with `backend` as its Docker context
 (canonical build; CI uses `docker build --file backend/Dockerfile backend`).
-A legacy root `Dockerfile` with identical runtime hardening is kept for manual
-builds only — do not mix contexts. If configuring the service manually, use
-`backend/Dockerfile` + `backend` context so the build stays consistent with CI.
+Configure the service with `backend/Dockerfile` + `backend` context so the
+build stays consistent with CI.
 Health check path is `/api/v1/health`.
 
 ---
@@ -85,6 +86,7 @@ Health check path is `/api/v1/health`.
    ```
    NEXT_PUBLIC_API_URL = https://linguo-backend.onrender.com
    NEXT_PUBLIC_WS_URL  = wss://linguo-backend.onrender.com
+   NEXT_PUBLIC_GOOGLE_CLIENT_ID = [Web OAuth client ID, same as backend GOOGLE_CLIENT_ID]
    ```
 5. Deploy
 
@@ -103,8 +105,9 @@ Health check path is `/api/v1/health`.
 
 - Use a unique randomly generated `SECRET_KEY`; never commit it.
 - Set `ALLOWED_ORIGINS` to the exact Vercel origin(s), not `*`.
-- Configure `DATABASE_URL`, `REDIS_URL`, and `GROQ_API_KEY` as Render secrets.
-- Verify health, readiness, metrics access, REST authentication, and WebSocket
+- Configure `DATABASE_URL` (JDBC form), `DATABASE_USERNAME`, `DATABASE_PASSWORD`,
+  `REDIS_URL`, and `GROQ_API_KEY` as Render secrets.
+- Verify health, readiness, REST authentication, and WebSocket
   connectivity after deployment.
 - Take a PostgreSQL backup before schema migrations and record the release
   version for rollback.
