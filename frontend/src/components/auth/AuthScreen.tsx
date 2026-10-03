@@ -56,17 +56,24 @@ export function AuthScreen({
   onGoogleLogin,
 }: AuthScreenProps) {
   const googleBtnRef = useRef<HTMLDivElement | null>(null);
+  const onGoogleLoginRef = useRef(onGoogleLogin);
+
+  useEffect(() => {
+    onGoogleLoginRef.current = onGoogleLogin;
+  }, [onGoogleLogin]);
 
   // Google Identity Services button (official, handles account chooser + One Tap UX)
   useEffect(() => {
-    if (!googleClientId || !onGoogleLogin || !googleBtnRef.current) return;
+    if (!googleClientId || !googleBtnRef.current) return;
     let cancelled = false;
     const render = () => {
       if (cancelled || !window.google || !googleBtnRef.current) return;
       window.google.accounts.id.initialize({
         client_id: googleClientId,
         callback: (res) => {
-          if (!cancelled && res?.credential) onGoogleLogin(res.credential);
+          if (!cancelled && res?.credential && onGoogleLoginRef.current) {
+            onGoogleLoginRef.current(res.credential);
+          }
         },
       });
       googleBtnRef.current.innerHTML = '';
@@ -94,9 +101,9 @@ export function AuthScreen({
     return () => {
       cancelled = true;
     };
-  }, [googleClientId, theme, onGoogleLogin]);
+  }, [googleClientId, theme]);
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-[46%_1fr] bg-[var(--bg)] text-[var(--text)] transition-colors duration-200 relative">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden grid grid-cols-1 lg:grid-cols-[46%_1fr] bg-[var(--bg)] text-[var(--text)] transition-colors duration-200 relative">
       {/* Theme toggle button top right */}
       <button
         onClick={toggleTheme}
@@ -111,7 +118,7 @@ export function AuthScreen({
       </button>
 
       {/* LEFT ART PANEL (Editorial Style) */}
-      <aside className="relative hidden lg:block overflow-hidden bg-[#1C1917]">
+      <aside className="relative hidden lg:block h-full overflow-hidden bg-[#1C1917]">
         <Image
           src="/login-image.png"
           alt="Mosaic community art"
@@ -124,22 +131,11 @@ export function AuthScreen({
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
-        <div className="absolute top-6 left-6 z-10 bg-[#FBF7F0] text-[#1C1917] text-[11px] font-semibold tracking-wider uppercase px-3.5 py-1.5 rounded-full shadow-md">
-          48 LANGUAGES · 12M LEARNERS
-        </div>
 
-        <div className="absolute left-8 right-8 bottom-8 z-10 text-[#FBF7F0]">
-          <blockquote className="font-serif-display text-2xl leading-snug">
-            “One language sets you in a corridor for life. Two languages open every door along the way.”
-          </blockquote>
-          <p className="mt-3 text-xs tracking-widest uppercase text-white/70 font-sans font-medium">
-            — THE MOSAIC COMMUNITY
-          </p>
-        </div>
       </aside>
 
       {/* RIGHT AUTH CARD */}
-      <main className="flex items-center justify-center p-6 sm:p-12 lg:p-16">
+      <main className="flex items-center justify-center p-6 sm:p-12 lg:p-16 h-full overflow-y-auto">
         <div className="w-full max-w-md mx-auto relative">
           {/* Brand Header */}
           <div className="flex items-center gap-3 mb-10">
