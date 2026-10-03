@@ -330,9 +330,20 @@ export function RoomInfoDrawer({
                   </div>
                 </div>
 
-                <span className="flex-none px-2 py-0.5 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 text-[10px] font-bold uppercase">
-                  {langNames[m.language] || m.language}
-                </span>
+                <div className="flex flex-none items-center gap-1.5">
+                  <span className="px-2 py-0.5 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 text-[10px] font-bold uppercase">
+                    {langNames[m.language] || m.language}
+                  </span>
+                  {isAdmin && !isDirect && m.user_id && m.email !== currentEmail && onTransferAdmin && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onTransferAdmin(m.user_id!); }}
+                      className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold hover:bg-amber-500/25 transition-colors cursor-pointer"
+                      title={`Make ${m.username || m.email} the admin`}
+                    >
+                      Make admin
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
