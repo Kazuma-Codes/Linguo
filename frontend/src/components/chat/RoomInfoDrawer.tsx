@@ -62,6 +62,7 @@ export function RoomInfoDrawer({
   isAdmin = false,
   creatorId,
   onSaveSettings,
+  onTransferAdmin,
 }: RoomInfoDrawerProps) {
   const [editingSettings, setEditingSettings] = useState(false);
   const [editTitle, setEditTitle] = useState(title);
