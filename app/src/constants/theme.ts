@@ -1,7 +1,5 @@
 import '@/global.css';
 
-import { Platform } from 'react-native';
-
 export const Colors = {
   light: {
     primary: '#6C5CE7',
@@ -44,39 +42,3 @@ export const Colors = {
     bubbleOtherText: '#F1F3F9',
   },
 } as const;
-
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
-
-export const Fonts = Platform.select({
-  ios: {
-    sans: 'system-ui',
-    serif: 'ui-serif',
-    rounded: 'ui-rounded',
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'Plus Jakarta Sans, Inter, sans-serif',
-    serif: 'DM Serif Display, serif',
-    rounded: 'Plus Jakarta Sans, sans-serif',
-    mono: 'JetBrains Mono, monospace',
-  },
-});
-
-export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
-} as const;
-
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;

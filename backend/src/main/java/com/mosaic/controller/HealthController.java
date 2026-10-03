@@ -8,18 +8,9 @@ import java.util.Map;
 @RestController
 public class HealthController {
 
-    @GetMapping("/")
-    public Map<String, String> root() {
-        return Map.of("service", "Mosaic Backend", "status", "UP");
-    }
-
-    @GetMapping("/health")
-    public Map<String, String> health() {
-        return Map.of("status", "ok");
-    }
-
+    // Only path render.yaml healthCheckPath + Dockerfile HEALTHCHECK use.
     @GetMapping("/api/v1/health")
-    public Map<String, String> apiHealth() {
+    public Map<String, String> health() {
         return Map.of("status", "ok");
     }
 }

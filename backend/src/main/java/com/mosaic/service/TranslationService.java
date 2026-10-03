@@ -6,8 +6,6 @@ import com.mosaic.config.AppProperties;
 import com.mosaic.model.dto.CulturalFootnotes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -72,27 +70,6 @@ public class TranslationService {
     }
 
     private final java.util.concurrent.atomic.AtomicInteger currentKeyIndex = new java.util.concurrent.atomic.AtomicInteger(0);
-
-    /**
-     * Warms up DNS, TCP, and TLS connections to Groq in the background on startup
-     * so the very first user message does not experience a cold-start delay.
-     */
-    @EventListener(ApplicationReadyEvent.class)
-    public void warmUp() {
-        List<String> keys = appProperties.getGroq().getResolvedApiKeys();
-        if (keys.isEmpty()) {
-            return;
-        }
-        Thread.ofVirtual().start(() -> {
-            try {
-                log.info("Warming up Groq connection pool with {} configured keys...", keys.size());
-                translateText("hi", "en", "es");
-                log.info("Groq warmup completed successfully.");
-            } catch (Exception e) {
-                log.debug("Groq warmup finished: {}", e.getMessage());
-            }
-        });
-    }
 
     public String normLang(String lang) {
         if (lang == null || lang.isBlank()) {

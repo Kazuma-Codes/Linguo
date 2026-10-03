@@ -13,7 +13,6 @@ import java.util.UUID;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message, UUID> {
-    List<Message> findAllByRoomIdOrderByCreatedAtAsc(UUID roomId);
     List<Message> findAllByRoomIdAndStatusOrderByCreatedAtAsc(UUID roomId, String status);
     Optional<Message> findByIdAndRoomId(UUID id, UUID roomId);
 

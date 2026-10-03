@@ -18,6 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Limits each client IP to MAX_REQUESTS per WINDOW_MS on
  * /api/v1/auth/login, /register and /google to slow brute-force
  * and denial-of-wallet via Groq fan-out.
+ * ponytail: in-memory fixed-window limiter is single-node — Bucket4j or gateway
+ * rate-limiting when >1 instance runs.
  */
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {

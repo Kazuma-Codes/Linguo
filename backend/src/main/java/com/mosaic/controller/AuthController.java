@@ -1,7 +1,6 @@
 package com.mosaic.controller;
 
 import com.mosaic.model.dto.TokenResponse;
-import com.mosaic.model.dto.LoginRequest;
 import com.mosaic.model.dto.UserCreateRequest;
 import com.mosaic.model.dto.UserResponse;
 import com.mosaic.model.entity.User;
@@ -40,12 +39,6 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email and password are required");
         }
         return authService.login(login, password);
-    }
-
-    // Handles application/json login
-    @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public TokenResponse loginJson(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request.getEmail(), request.getPassword());
     }
 
     // Google Sign-In: { "id_token": "<GIS credential>" } → our JWT

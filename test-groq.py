@@ -137,23 +137,3 @@ def test_groq(api_key: str):
 if __name__ == "__main__":
     key = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("GROQ_API_KEY", "")
     test_groq(key)
-
-
-import java.util.Arrays;
-
-public class SortString {
-    public static void main(String[] args) {
-        String original = "java";
-        
-        // 1. Convert string to a char array
-        char[] chars = original.toCharArray();
-        
-        // 2. Sort the array in-place
-        Arrays.sort(chars);
-        
-        // 3. Convert the sorted array back to a String
-        String sorted = new String(chars);
-        
-        System.out.println(sorted); // Output: aajv
-    }
-}

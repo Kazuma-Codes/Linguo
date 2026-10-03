@@ -8,6 +8,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * ponytail: script/keyword heuristic, wrong on mixed-script text —
+ * upgrade to Groq detect when accuracy matters.
+ */
 @Service
 public class LanguageDetectionService {
 

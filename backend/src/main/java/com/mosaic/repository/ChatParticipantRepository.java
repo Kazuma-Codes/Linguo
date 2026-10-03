@@ -19,8 +19,6 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     @EntityGraph(attributePaths = {"user"})
     List<ChatParticipant> findAllByRoomId(UUID roomId);
 
-    List<ChatParticipant> findAllByUserId(UUID userId);
-
     @Modifying
     @Query("UPDATE ChatParticipant p SET p.language = :lang WHERE p.user.id = :userId")
     int updateLanguageByUserId(@Param("userId") UUID userId, @Param("lang") String lang);

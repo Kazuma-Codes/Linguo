@@ -3,6 +3,11 @@ server:
 
 
 spring:
+  config:
+    # ponytail: .env read depends on CWD=backend/ (README's `cd backend && mvn`) and plain KEY=VAL only.
+    # upgrade path: real env vars or spring-dotenv when deploying from another directory / .env gains quotes.
+    # running from repo root? append a 2nd line: - optional:file:backend/.env[.properties]
+    import: optional:file:.env[.properties]
   application:
     name: mosaic-backend
   threads:
@@ -11,8 +16,8 @@ spring:
 
   datasource:
     url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}
-    username: ${POSTGRES_USER:}
-    password: ${POSTGRES_PASSWORD:}
+    username: ${DATABASE_USERNAME:${POSTGRES_USER:}}
+    password: ${DATABASE_PASSWORD:${POSTGRES_PASSWORD:}}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -24,11 +29,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: false
-    show-sql: false
 
   data:
     redis:
@@ -53,7 +53,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics,loggers
+        include: health
   endpoint:
     health:
       show-details: never
