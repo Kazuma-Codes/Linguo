@@ -151,8 +151,7 @@ public class RoomService {
 
     @Transactional(readOnly = true)
     public List<RoomResponse> listDiscoverableRooms(User currentUser) {
-        return roomRepository.findAllByRoomTypeAndIsPrivateFalseOrderByCreatedAtDesc("group").stream()
-                .filter(room -> !participantRepository.existsByRoomIdAndUserId(room.getId(), currentUser.getId()))
+        return roomRepository.findDiscoverableExcluding("group", currentUser.getId()).stream()
                 .map(room -> toRoomResponse(room, currentUser))
                 .collect(Collectors.toList());
     }
@@ -387,24 +386,6 @@ public class RoomService {
     }
 
     @Transactional
-    public RoomDetailResponse setMyLanguage(UUID roomId, String newLanguage, User currentUser) {        ChatRoom room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
-
-        String normNew = norm(newLanguage);
-        if (normNew == null || !TranslationService.LANG_MAP.containsKey(normNew)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported language code: " + newLanguage);
-        }
-
-        ChatParticipant participant = participantRepository.findByRoomIdAndUserId(roomId, currentUser.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a participant of this room"));
-
-        participant.setLanguage(normNew);
-        participantRepository.save(participant);
-
-        return getRoom(roomId, currentUser);
-    }
-
-    @Transactional
     public void leaveRoom(UUID roomId, User currentUser) {
         // ponytail: link-known = invited; add left-members/ban table if rejoin abuse matters
         ChatRoom room = roomRepository.findById(roomId)
@@ -464,10 +445,8 @@ public class RoomService {
         String displayAvatar = room.getAvatarUrl();
 
         if ("direct".equalsIgnoreCase(room.getRoomType())) {
-            List<ChatParticipant> participants = participantRepository.findAllByRoomId(room.getId());
-            Optional<ChatParticipant> other = participants.stream()
-                    .filter(p -> !p.getUser().getId().equals(currentUser.getId()))
-                    .findFirst();
+            Optional<ChatParticipant> other =
+                    participantRepository.findFirstByRoomIdAndUserIdNot(room.getId(), currentUser.getId());
             if (other.isPresent()) {
                 User ou = other.get().getUser();
                 displayTitle = ou.displayName();
@@ -475,16 +454,12 @@ public class RoomService {
             }
         }
 
-        List<Message> msgs = room.getMessages();
-        String lastMsg = null;
-        Instant lastMsgAt = room.getCreatedAt();
-        if (msgs != null && !msgs.isEmpty()) {
-            Message last = msgs.get(msgs.size() - 1);
-            lastMsg = last.getOriginalText();
-            lastMsgAt = last.getCreatedAt();
-        }
+        // Top1 instead of loading every message of the room for the last one.
+        Message last = messageRepository.findFirstByRoomIdOrderByCreatedAtDesc(room.getId());
+        String lastMsg = last != null ? last.getOriginalText() : null;
+        Instant lastMsgAt = last != null ? last.getCreatedAt() : room.getCreatedAt();
 
-        int count = room.getParticipants() != null ? room.getParticipants().size() : 1;
+        int count = (int) participantRepository.countByRoomId(room.getId());
 
         return RoomResponse.builder()
                 .id(room.getId())
