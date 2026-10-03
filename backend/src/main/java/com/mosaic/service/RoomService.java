@@ -405,56 +405,56 @@ public class RoomService {
     }
 
     @Transactional
-    // allows the user to leave group chat with some rules
-    public void leaveRoom(UUID roomId,User currentUser){
-        ChatRoom room = roomRepository.findById(roomId).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND,"room not found"));
+    public void leaveRoom(UUID roomId, User currentUser) {
+        // ponytail: link-known = invited; add left-members/ban table if rejoin abuse matters
+        ChatRoom room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
 
-        ChatParticipant participant = participantRepository.findByRoomIdAndUserId(roomId,currentUser.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "not a participant of this room"));
+        ChatParticipant participant = participantRepository.findByRoomIdAndUserId(roomId, currentUser.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a participant of this room"));
 
-        if ("direct".equalsIgnoreCase(room.getRoomType())){
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,"direct chat cannot be left");
+        if ("direct".equalsIgnoreCase(room.getRoomType())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Direct chats cannot be left");
         }
+
         boolean isAdmin = room.getCreator().getId().equals(currentUser.getId());
         long count = participantRepository.countByRoomId(roomId);
 
-        if(isAdmin && count >1 ){
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,"transfer admin before leaving");
+        if (isAdmin && count > 1) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Transfer admin before leaving");
         }
-
-        if(isAdmin){
+        if (isAdmin) {
             roomRepository.delete(room);
             return;
         }
         participantRepository.delete(participant);
-
     }
 
 
     @Transactional
-    public  RoomDetailResponse transferAdmin(UUID roomId,UUID newAdminId,User currentUser){
-        ChatRoom room = roomRepository.findById(roomId).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND,"room not found"));
-
-        if(!room.getCreator().getId().equals(currentUser.getId())){
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,"only admin can transfer ownership");
+    public RoomDetailResponse transferAdmin(UUID roomId, UUID newAdminId, User currentUser) {
+        if (newAdminId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "newAdminId is required");
         }
+        ChatRoom room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
 
-        if ("direct".equalsIgnoreCase(room.getRoomType())){
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,"direct chat cannot be left");
+        if (!room.getCreator().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the admin can transfer ownership");
         }
-        User newAdmin = userRepository.findById(newAdminId).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND,"target user not found"));
-
-        if(!participantRepository.existsByRoomIdAndUserId(roomId,newAdminId)){
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"new admin muse be in the room");
+        if ("direct".equalsIgnoreCase(room.getRoomType())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Direct chats have no admin");
+        }
+        User newAdmin = userRepository.findById(newAdminId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target user not found"));
+        if (!participantRepository.existsByRoomIdAndUserId(roomId, newAdminId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New admin must be a room member");
         }
 
         room.setCreator(newAdmin);
         roomRepository.save(room);
 
-        return getRoom(roomId,currentUser);
+        return getRoom(roomId, currentUser);
     }
 
 

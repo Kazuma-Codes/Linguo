@@ -43,7 +43,8 @@ async function apiFetch(path: string, options: RequestInit = {}, retries = 1): P
       // response wasn't JSON — keep generic message
     }
     // Auto-logout if token is expired or invalid
-    if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
+    // ponytail: 401 only — 403 is business logic (leave/transfer), not expired token
+    if (res.status === 401 && typeof window !== 'undefined') {
       const headers = options.headers as Record<string, string> | undefined;
       if (headers && (headers['Authorization'] || headers['authorization'])) {
         useAuthStore.getState().logout();
@@ -299,13 +300,14 @@ export async function leaveRoom(token: string, roomId: string) {
   });
 }
 
-export async function transferAdmin(token:string,roomId:string,newAdminId:string){
+/** Transfer group admin to another member (admin only). */
+export async function transferAdmin(token: string, roomId: string, newAdminId: string) {
   return apiFetch(`/rooms/${roomId}/transfer`, {
-    method :'POST',
-    headers:{
-    'Content-Type' : 'application/json',
-    Authorization: `Bearer ${token}`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({newAdminId}),
+    body: JSON.stringify({ newAdminId }),
   });
 }

@@ -93,6 +93,7 @@ export default function HomePage() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [expandedBubbleIds, setExpandedBubbleIds] = useState<Set<string>>(new Set());
