@@ -50,7 +50,7 @@ public class ContactService {
                     c.getId(),
                     cu.getId(),
                     cu.getEmail(),
-                    cu.getUsername() != null ? cu.getUsername() : cu.getEmail().split("@")[0],
+                    cu.displayName(),
                     cu.getAvatarUrl(),
                     cu.getAbout(),
                     cu.getPhone(),

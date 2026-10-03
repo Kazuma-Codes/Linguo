@@ -234,7 +234,7 @@ public class RoomService {
                 .map(p -> MemberResponse.builder()
                         .userId(p.getUser().getId())
                         .email(p.getUser().getEmail())
-                        .username(p.getUser().getUsername() != null ? p.getUser().getUsername() : p.getUser().getEmail().split("@")[0])
+                        .username(p.getUser().displayName())
                         .avatarUrl(p.getUser().getAvatarUrl())
                         .language(norm(p.getLanguage()))
                         .joinedAt(p.getJoinedAt())
@@ -255,7 +255,7 @@ public class RoomService {
                     .findFirst();
             if (other.isPresent()) {
                 User ou = other.get().getUser();
-                displayTitle = ou.getUsername() != null ? ou.getUsername() : ou.getEmail().split("@")[0];
+                displayTitle = ou.displayName();
                 displayAvatar = ou.getAvatarUrl();
             }
         }
@@ -314,7 +314,7 @@ public class RoomService {
                     .roomId(roomId)
                     .senderId(sender.getId())
                     .senderEmail(sender.getEmail())
-                    .senderUsername(sender.getUsername() != null ? sender.getUsername() : sender.getEmail().split("@")[0])
+                    .senderUsername(sender.displayName())
                     .senderAvatarUrl(sender.getAvatarUrl())
                     .originalText(m.getOriginalText())
                     .translatedText(m.getTranslatedText())
@@ -348,7 +348,7 @@ public class RoomService {
                 .map(p -> MemberResponse.builder()
                         .userId(p.getUser().getId())
                         .email(p.getUser().getEmail())
-                        .username(p.getUser().getUsername() != null ? p.getUser().getUsername() : p.getUser().getEmail().split("@")[0])
+                        .username(p.getUser().displayName())
                         .avatarUrl(p.getUser().getAvatarUrl())
                         .language(norm(p.getLanguage()))
                         .joinedAt(p.getJoinedAt())
@@ -470,7 +470,7 @@ public class RoomService {
                     .findFirst();
             if (other.isPresent()) {
                 User ou = other.get().getUser();
-                displayTitle = ou.getUsername() != null ? ou.getUsername() : ou.getEmail().split("@")[0];
+                displayTitle = ou.displayName();
                 displayAvatar = ou.getAvatarUrl();
             }
         }
