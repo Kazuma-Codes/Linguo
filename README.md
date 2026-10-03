@@ -308,18 +308,17 @@ WebSocket connections are initiated at `/api/v1/ws/chat/{roomId}?token={jwt}`. A
 
 ```text
 cross-language/
-├── ARCHITECTURE.md                  # Comprehensive architectural deep-dive & file map
 ├── README.md                        # Master project documentation
 │
-├── backend/                         # Spring Boot 3.4 + Java 21 Backend
+├── backend/                         # Spring Boot 3.5 + Java 21 Backend
 │   ├── pom.xml                      # Maven dependencies & build configuration
 │   └── src/main/
 │       ├── resources/
 │       │   ├── application.yml      # Base Spring Boot configuration
 │       │   ├── application-local.yml# Local development overrides
-│       │   └── db/migration/        # Flyway SQL migrations (V1, V2, V3)
+│       │   └── db/migration/        # Flyway SQL migrations
 │       └── java/com/mosaic/
-│           ├── config/              # Security, Async, WebSocket, Redis, & App configs
+│           ├── config/              # Security, WebSocket, Rate-limit, Redis, & App configs
 │           ├── controller/          # REST API endpoints (Auth, Rooms, Health)
 │           ├── exception/           # RFC-compliant Global Exception Handler
 │           ├── model/
@@ -328,6 +327,13 @@ cross-language/
 │           ├── repository/          # Spring Data JPA repositories with @EntityGraph
 │           ├── service/             # ChatService, TranslationService, CacheService, etc.
 │           └── websocket/           # ChatWebSocketHandler & Session Registry
+│
+├── app/                             # Expo / React Native mobile app (Expo Router)
+│   └── src/
+│       ├── app/                     # _layout, index hub, chat/[roomId] screens
+│       ├── components/              # Composer, MessageBubble, RoomInfoDrawer, etc.
+│       ├── store/                   # Zustand stores (useAuthStore, useChatStore)
+│       └── lib/                     # API client, config, avatar presets
 │
 └── frontend/                        # Next.js 14 (App Router) + TypeScript Frontend
     ├── package.json                 # Dependencies & scripts
@@ -419,13 +425,15 @@ npm run dev
 | Variable | Required | Default | Description |
 | :--- | :---: | :---: | :--- |
 | `GROQ_API_KEY` | **Yes** | — | Comma-delimited list of Groq Cloud API keys for round-robin rotation. |
-| `DATABASE_URL` | **Yes** | — | PostgreSQL connection string (supports Neon SSL: `?sslmode=require`). |
+| `DATABASE_URL` | **Yes** | — | PostgreSQL JDBC URL (`jdbc:postgresql://host:5432/db`), add `?sslmode=require` for Neon/Render. |
 | `REDIS_URL` | **Yes** | — | Redis connection URL (`redis://:password@host:port`). |
 | `SECRET_KEY` | **Yes** | — | HMAC-SHA256 secret for signing JWT tokens (min. 32 chars). |
 | `PORT` | No | `8000` | Backend server port. |
 | `ALLOWED_ORIGINS`| No | `http://localhost:3000`| Allowed CORS origins for REST and WebSockets. |
-| `DATABASE_USERNAME` | No | Extracted from URL | DB user (if not embedded in `DATABASE_URL`). |
-| `DATABASE_PASSWORD` | No | Extracted from URL | DB password (if not embedded in `DATABASE_URL`). |
+| `DATABASE_USERNAME` | No | `POSTGRES_USER` | DB user. |
+| `DATABASE_PASSWORD` | No | `POSTGRES_PASSWORD` | DB password. |
+| `GOOGLE_CLIENT_ID` | No | — | Web OAuth client ID for Google Sign-In. |
+| `GROQ_MODEL` | No | `openai/gpt-oss-20b` | Primary Groq model. |
 
 ### Frontend (`frontend/.env.local` - Optional)
 
@@ -433,6 +441,7 @@ npm run dev
 | :--- | :---: | :---: | :--- |
 | `NEXT_PUBLIC_API_URL` | No | `http://localhost:8000/api/v1` | Backend REST API base URL. |
 | `NEXT_PUBLIC_WS_URL` | No | `ws://localhost:8000` | Backend WebSocket base URL. |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No | — | Web Google Sign-In button (same client ID as backend). |
 
 ---
 

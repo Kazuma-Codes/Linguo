@@ -16,7 +16,7 @@ app:
   jwt:
     secret: ${SECRET_KEY:local-development-secret-key-change-me-123456789}
   groq:
-    api-key: ${GROQ_API_KEY:local-development-key}
+    api-keys: ${GROQ_API_KEY:local-development-key}
   cors:
     allowed-origins:
       - http://localhost:3000

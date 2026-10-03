@@ -50,7 +50,7 @@ Flow: `config.ts → lib/api.ts → page.tsx / chat/[roomId]/page.tsx`; `config.
 
 ### `frontend/tailwind.config.ts`
 **Purpose:** Tailwind scan + CSS-var theming bridge.
-**Key:** `content: src/pages|components|app/**/*`; `theme.extend.colors{background:foreground}` via vars.
+**Key:** `content: src/pages|components|app/**/*`; `theme: {}` (all styling via CSS vars).
 **Connects to:** `src/app/globals.css`, all `className="bg-[var(--...)]"` components.
 
 ### `frontend/tsconfig.json`
@@ -92,11 +92,6 @@ Flow: `config.ts → lib/api.ts → page.tsx / chat/[roomId]/page.tsx`; `config.
 **Purpose:** Incremental build cache (generated, do not edit).
 **Key:** Binary-ish JSON timestamps.
 **Connects to:** Produced by `tsc --incremental`.
-
-### `frontend/public/auth-art.png`
-**Purpose:** Editorial artwork shown on left side of login wall.
-**Key:** Static image `/auth-art.png` + quote overlay.
-**Connects to:** Used by `src/components/auth/AuthScreen.tsx`.
 
 ---
 
