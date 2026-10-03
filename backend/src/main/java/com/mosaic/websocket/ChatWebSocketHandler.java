@@ -139,9 +139,10 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 case "typing" -> chatService.handleTyping(roomId, incoming.getIsTyping(), user);
                 case "read_ack" -> chatService.handleReadAck(roomId, incoming.getMessageId(), user);
                 case "delete_message" -> chatService.handleDeleteMessage(roomId, incoming.getMessageId(), user);
-                case "send_draft" -> chatService.handleSendDraft(roomId, incoming, user);
+                // Legacy quick-send routes through the draft pipeline so every message
+                // still gets AI translation + footnotes (bypass caused untranslated originals).
+                case "send_draft", "send_message", "direct_send" -> chatService.handleSendDraft(roomId, incoming, user);
                 case "confirm_draft" -> chatService.handleConfirmDraft(roomId, incoming.getId(), incoming.getEditedText(), user);
-                case "send_message", "direct_send" -> chatService.handleDirectSend(roomId, incoming, user);
                 default -> throw new IllegalArgumentException("Unsupported message type");
             }
         } catch (JsonProcessingException | IllegalArgumentException e) {

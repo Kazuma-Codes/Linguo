@@ -224,22 +224,6 @@ public class ChatService {
         log.info("Untranslated content finalized immediately (file/emoji): {}", msg.getId());
     }
 
-    @Transactional
-    public void handleDirectSend(String roomIdStr, WsIncomingMessage incoming, User sender) {
-        // Enforced Draft→Confirm path (chosen over quick-send bypass):
-        // every message gets AI translation + footnotes + cache write, so receivers
-        // always see their Settings default language. Direct final-send caused
-        // untranslated originals and inconsistent translations maps.
-        log.info("Legacy direct_send received; routing through draft pipeline for room {}", roomIdStr);
-        handleSendDraft(roomIdStr, incoming, sender);
-    }
-
-    public void handleDirectSend(String roomIdStr, String text, User sender) {
-        WsIncomingMessage inc = new WsIncomingMessage();
-        inc.setText(text);
-        handleDirectSend(roomIdStr, inc, sender);
-    }
-
     public void handleTyping(String roomIdStr, Boolean isTyping, User sender) {
         WsOutgoingMessage typingMsg = WsOutgoingMessage.builder()
                 .type("typing")

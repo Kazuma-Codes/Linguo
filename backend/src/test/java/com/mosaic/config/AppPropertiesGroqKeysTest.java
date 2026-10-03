@@ -7,27 +7,22 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Guards Groq multi-key aggregation: empty/blank keys must never
- * produce entries, duplicates collapsed, comma-separated split.
+ * Guards Groq key resolution: empty/blank keys must never
+ * produce entries, duplicates collapsed.
+ * (Comma-splitting of the env value happens at bind time, not here.)
  */
 class AppPropertiesGroqKeysTest {
 
     @Test
-    void aggregatesCommaSeparatedAndIndividualKeys() {
+    void skipsBlanksAndDedupes() {
         AppProperties.Groq groq = new AppProperties.Groq();
-        groq.setApiKey("gsk_a, gsk_b, ");
-        groq.setApiKey1("gsk_c");
-        groq.setApiKey2("gsk_a"); // duplicate
-        groq.setApiKey3("  ");
+        groq.setApiKeys(List.of("gsk_a", "gsk_b", " ", "gsk_a", "gsk_c"));
 
-        List<String> resolved = groq.getResolvedApiKeys();
-
-        assertEquals(List.of("gsk_a", "gsk_b", "gsk_c"), resolved);
+        assertEquals(List.of("gsk_a", "gsk_b", "gsk_c"), groq.getResolvedApiKeys());
     }
 
     @Test
     void emptyWhenNothingConfigured() {
-        AppProperties.Groq groq = new AppProperties.Groq();
-        assertTrue(groq.getResolvedApiKeys().isEmpty());
+        assertTrue(new AppProperties.Groq().getResolvedApiKeys().isEmpty());
     }
 }
