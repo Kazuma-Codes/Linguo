@@ -17,6 +17,9 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     Optional<ChatParticipant> findByRoomIdAndUserId(UUID roomId, UUID userId);
 
     @EntityGraph(attributePaths = {"user"})
+    Optional<ChatParticipant> findFirstByRoomIdAndUserIdNot(UUID roomId, UUID userId);
+
+    @EntityGraph(attributePaths = {"user"})
     List<ChatParticipant> findAllByRoomId(UUID roomId);
 
     @Modifying

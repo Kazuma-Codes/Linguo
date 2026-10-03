@@ -21,5 +21,9 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, UUID> {
            "(SELECT p2.room.id FROM ChatParticipant p2 WHERE p2.user.id = :user2Id))")
     Optional<ChatRoom> findDirectRoomBetweenUsers(@Param("user1Id") UUID user1Id, @Param("user2Id") UUID user2Id);
 
-    List<ChatRoom> findAllByRoomTypeAndIsPrivateFalseOrderByCreatedAtDesc(String roomType);
+    // ponytail: NOT EXISTS + Top1 is fine for hundreds of rooms — add pagination if a list ever exceeds ~100.
+    @Query("SELECT r FROM ChatRoom r WHERE r.roomType = :roomType AND r.isPrivate = false "
+         + "AND NOT EXISTS (SELECT p.id FROM ChatParticipant p WHERE p.room = r AND p.user.id = :userId) "
+         + "ORDER BY r.createdAt DESC")
+    List<ChatRoom> findDiscoverableExcluding(@Param("roomType") String roomType, @Param("userId") UUID userId);
 }
