@@ -502,7 +502,7 @@ export default function HomePage() {
     );
   }
 
-  // 1. UNAUTHENTICATED: Editorial Auth Screen preserving /auth-art.png
+  // 1. UNAUTHENTICATED: Editorial Auth Screen (CSS gradient art panel)
   if (!user || !token) {
     return (
       <AuthScreen
