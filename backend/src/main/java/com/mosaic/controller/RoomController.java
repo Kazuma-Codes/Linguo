@@ -4,6 +4,7 @@ import com.mosaic.model.dto.*;
 import com.mosaic.model.entity.User;
 import com.mosaic.service.RoomService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -62,6 +63,24 @@ public class RoomController {
             @AuthenticationPrincipal User currentUser
     ) {
         return roomService.joinRoom(roomId, currentUser);
+    }
+
+    @DeleteMapping("/rooms/{roomId}/leave")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void leaveRoom(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        roomService.leaveRoom(roomId, currentUser);
+    }
+
+    @PostMapping("/rooms/{roomId}/transfer")
+    public RoomDetailResponse transferAdmin(
+            @PathVariable UUID roomId,
+            @RequestBody TransferAdminRequest request,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        return roomService.transferAdmin(roomId, request.getNewAdminId(), currentUser);
     }
 
     @GetMapping("/rooms/{roomId}")

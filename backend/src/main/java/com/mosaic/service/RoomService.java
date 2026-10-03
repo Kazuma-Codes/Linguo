@@ -16,6 +16,7 @@ import com.mosaic.repository.ChatParticipantRepository;
 import com.mosaic.repository.ChatRoomRepository;
 import com.mosaic.repository.MessageRepository;
 import com.mosaic.repository.UserRepository;
+import org.springframework.boot.rsocket.server.RSocketServerException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -403,6 +404,58 @@ public class RoomService {
         return getRoom(roomId, currentUser);
     }
 
+    @Transactional
+    // allows the user to leave group chat with some rules
+    public void leaveRoom(UUID roomId,User currentUser){
+        ChatRoom room = roomRepository.findById(roomId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND,"room not found"));
+
+        ChatParticipant participant = participantRepository.findByRoomIdAndUserId(roomId,currentUser.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "not a participant of this room"));
+
+        if ("direct".equalsIgnoreCase(room.getRoomType())){
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,"direct chat cannot be left");
+        }
+        boolean isAdmin = room.getCreator().getId().equals(currentUser.getId());
+        long count = participantRepository.countByRoomId(roomId);
+
+        if(isAdmin && count >1 ){
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,"transfer admin before leaving");
+        }
+
+        if(isAdmin){
+            roomRepository.delete(room);
+            return;
+        }
+        participantRepository.delete(participant);
+
+    }
+
+
+    @Transactional
+    public  RoomDetailResponse transferAdmin(UUID roomId,UUID newAdminId,User currentUser){
+        ChatRoom room = roomRepository.findById(roomId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND,"room not found"));
+
+        if(!room.getCreator().getId().equals(currentUser.getId())){
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,"only admin can transfer ownership");
+        }
+
+        if ("direct".equalsIgnoreCase(room.getRoomType())){
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,"direct chat cannot be left");
+        }
+        User newAdmin = userRepository.findById(newAdminId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND,"target user not found"));
+
+        if(!participantRepository.existsByRoomIdAndUserId(roomId,newAdminId)){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"new admin muse be in the room");
+        }
+
+        room.setCreator(newAdmin);
+        roomRepository.save(room);
+
+        return getRoom(roomId,currentUser);
+    }
 
 
 
