@@ -251,7 +251,7 @@ export default function HomePage() {
       setAuth(data.access_token, userData);
       setEmail('');
       setPassword('');
-      showToast('✨ Welcome to Mosaic!');
+      showToast('Welcome to Mosaic!');
     } catch (err: any) {
       setAuthError(err.message || 'Google sign-in failed. Please try again.');
     } finally {
@@ -286,7 +286,7 @@ export default function HomePage() {
       setAuth(accessToken, userData);
       setEmail('');
       setPassword('');
-      showToast('✨ Welcome to Mosaic!');
+      showToast('Welcome to Mosaic!');
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed. Please check credentials.');
     } finally {
@@ -320,7 +320,7 @@ export default function HomePage() {
         is_private: data.is_private,
       });
       await loadAllData();
-      showToast(`✨ Group "${data.title}" created`);
+      showToast(`Group "${data.title}" created`);
       setActiveRoomId(room.id);
       setActiveTab('chats');
     } catch (err: any) {
@@ -687,7 +687,7 @@ export default function HomePage() {
             }}
             onResetDemoData={() => {
               loadAllData();
-              showToast('✨ Demo data restored');
+              showToast('Demo data restored');
             }}
             availableLanguages={SUPPORTED_LANGUAGES}
           />

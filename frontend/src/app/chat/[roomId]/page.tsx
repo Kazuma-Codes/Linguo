@@ -365,7 +365,7 @@ export default function ChatRoomPage() {
           onCancelReply={() => setReplyTo(null)}
           onDraft={(text, extra) => {
             sendDraft(text, extra);
-            showToast('✨ Translating with Groq AI...');
+            showToast('Translating with Groq AI...');
           }}
           onTyping={(isTyping) => sendTyping(isTyping)}
         />

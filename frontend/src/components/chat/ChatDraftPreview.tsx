@@ -23,7 +23,7 @@ export function ChatDraftPreview({
       <div className="max-w-[85%] sm:max-w-[75%] p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-[var(--text)] shadow-md space-y-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-            ✨ Draft AI Translation
+            Draft AI Translation
           </span>
           {isTranslating && (
             <span className="text-xs text-amber-500 font-medium flex items-center gap-1.5">

@@ -232,7 +232,7 @@ export function MergedMessageBubble({
             <div>
               {!m.is_me && !isExpanded && m.detected_lang && m.detected_lang !== myLang && (
                 <span className="italic">
-                  ✨ Translated from {langNames[m.detected_lang] || m.detected_lang}
+                  Translated from {langNames[m.detected_lang] || m.detected_lang}
                 </span>
               )}
             </div>
