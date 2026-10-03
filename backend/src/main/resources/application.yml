@@ -75,10 +75,7 @@ app:
     android-client-id: ${GOOGLE_ANDROID_CLIENT_ID:}
   # Groq Cloud AI configuration with multi-key and multi-model fallback
   groq:
-    api-key: ${GROQ_API_KEYS:${GROQ_API_KEY:}}
-    api-key1: ${GROQ_API_KEY_1:}
-    api-key2: ${GROQ_API_KEY_2:}
-    api-key3: ${GROQ_API_KEY_3:}
+    api-keys: ${GROQ_API_KEYS:${GROQ_API_KEY:}}
     base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
     model: ${GROQ_MODEL:openai/gpt-oss-20b}
     backup-model: ${GROQ_BACKUP_MODEL:openai/gpt-oss-120b}
