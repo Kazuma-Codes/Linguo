@@ -1,5 +1,6 @@
 "use client";
 
+import Image from 'next/image';
 import { useEffect, useRef } from 'react';
 import { Icons } from '@/lib/icons';
 
@@ -72,7 +73,7 @@ export function AuthScreen({
       window.google.accounts.id.renderButton(googleBtnRef.current, {
         theme: theme === 'dark' ? 'filled_black' : 'outline',
         size: 'large',
-        width: googleBtnRef.current.offsetWidth || 320,
+        width: 300,
         text: 'continue_with',
       });
     };
@@ -111,7 +112,15 @@ export function AuthScreen({
 
       {/* LEFT ART PANEL (Editorial Style) */}
       <aside className="relative hidden lg:block overflow-hidden bg-[#1C1917]">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600" />
+        <Image
+          src="/login-image.png"
+          alt="Mosaic community art"
+          fill
+          priority
+          unoptimized
+          sizes="(min-width: 1024px) 50vw, 0px"
+          className="w-full h-full object-cover select-none pointer-events-none"
+        />
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
@@ -131,7 +140,7 @@ export function AuthScreen({
 
       {/* RIGHT AUTH CARD */}
       <main className="flex items-center justify-center p-6 sm:p-12 lg:p-16">
-        <div className="w-full max-w-md mx-auto">
+        <div className="w-full max-w-md mx-auto relative">
           {/* Brand Header */}
           <div className="flex items-center gap-3 mb-10">
             <img
@@ -237,14 +246,26 @@ export function AuthScreen({
 
           {/* Google Sign-In (hidden until NEXT_PUBLIC_GOOGLE_CLIENT_ID is set) */}
           {googleClientId && onGoogleLogin && (
-            <>
-              <div className="flex items-center gap-3 mt-6">
+            <div className="mt-6">
+              <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-[var(--border)]" />
                 <span className="text-xs text-[var(--muted)]">or</span>
                 <div className="flex-1 h-px bg-[var(--border)]" />
               </div>
-              <div ref={googleBtnRef} className="mt-4 flex justify-center min-h-[44px]" />
-            </>
+              <div className="mt-4 flex justify-center h-[44px]">
+                <div ref={googleBtnRef} className="w-[300px] h-[44px] flex justify-center" />
+              </div>
+            </div>
+          )}
+
+          {/* Active login / authentication spinner overlay */}
+          {authLoading && (
+            <div className="absolute inset-0 bg-[var(--card)]/80 backdrop-blur-xs z-30 flex flex-col items-center justify-center rounded-2xl transition-all">
+              <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              <p className="mt-4 text-sm font-semibold text-[var(--text)] tracking-tight">
+                {isLogin ? 'Signing in to Mosaic...' : 'Creating your account...'}
+              </p>
+            </div>
           )}
         </div>
       </main>

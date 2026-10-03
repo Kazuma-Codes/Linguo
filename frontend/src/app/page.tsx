@@ -491,7 +491,8 @@ export default function HomePage() {
   };
 
 
-  if (!hasHydrated) {
+  // Only show full-screen loader if an existing session is rehydrating
+  if (!hasHydrated && token) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[var(--bg)] text-[var(--muted)]">
         <div className="flex items-center gap-3">

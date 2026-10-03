@@ -10,12 +10,8 @@ export const metadata: Metadata = {
   title: 'Mosaic — Cross Language Translation',
   description: 'Real-time cross-language translation chat app with AI',
   icons: {
-    icon: [
-      { url: '/icon.png?v=2', type: 'image/png' },
-      { url: '/favicon.ico?v=2' },
-    ],
-    shortcut: '/icon.png?v=2',
-    apple: '/icon.png?v=2',
+    icon: '/icon.png',
+    apple: '/icon.png',
   },
   verification: {
     google: 'e7yu-GnOKALPszHtrlBONap6-sk9d-s8DDqCpQo6NDI',
