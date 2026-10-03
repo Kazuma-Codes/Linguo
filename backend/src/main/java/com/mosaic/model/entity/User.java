@@ -115,6 +115,14 @@ public class User {
     public void setPreferredLanguage(String preferredLanguage) { this.preferredLanguage = preferredLanguage; }
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
+    public String displayName() {
+        if (username != null && !username.isBlank()) {
+            return username;
+        }
+        int at = email != null ? email.indexOf('@') : -1;
+        return at > 0 ? email.substring(0, at) : (email != null ? email : "");
+    }
     public String getAvatarUrl() { return avatarUrl; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public String getAbout() { return about; }
