@@ -563,9 +563,9 @@ export default function HomePage() {
           {/* Top: Brand Logo */}
           <div className="flex items-center gap-3 px-3 py-1">
             <img
-                src="icon.png"
-                alt="Logo"
-                className="w-9 h-9 rounded-xl object-contain"
+              src="/icon.png"
+              alt="Logo"
+              className="w-9 h-9 rounded-xl object-contain"
             />
             <span className="text-xl font-bold tracking-tight text-[var(--text)]">
     Mosaic
