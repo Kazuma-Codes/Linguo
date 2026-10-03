@@ -561,15 +561,15 @@ export default function HomePage() {
       <nav className="hidden md:flex flex-col justify-between w-60 py-5 px-3 bg-[var(--card)] border-r border-[var(--border)] z-20 flex-none select-none">
         <div className="space-y-6">
           {/* Top: Brand Logo */}
-          <div className="flex items-center gap-3 px-3 py-1">
+          <div className="flex items-center gap-2.5 px-3 py-1">
             <img
               src="/icon.png"
               alt="Logo"
-              className="w-9 h-9 rounded-xl object-contain"
+              className="h-8 w-auto max-w-[36px] object-contain shrink-0"
             />
             <span className="text-xl font-bold tracking-tight text-[var(--text)]">
-    Mosaic
-  </span>
+              Mosaic
+            </span>
           </div>
           {/* Navigation Links */}
           <div className="space-y-1">
