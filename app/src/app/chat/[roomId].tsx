@@ -305,7 +305,6 @@ export default function ChatRoom() {
         onCancelReply={() => setReplyTo(null)}
         onSend={(text, extra) => {
           sendDraft(text, extra);
-          showToast('✨ Translating with Groq AI...');
         }}
         onTyping={(t) => sendTyping(t)}
       />

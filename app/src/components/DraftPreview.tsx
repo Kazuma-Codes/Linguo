@@ -34,7 +34,7 @@ export function DraftPreview({
   return (
     <View style={[styles.card, { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.45)' }]}>
       <View style={styles.header}>
-        <Text style={styles.amberTitle}>✨ Draft AI Translation</Text>
+        <Text style={styles.amberTitle}> Draft AI Translation</Text>
         {isTranslating && (
           <View style={styles.translating}>
             <ActivityIndicator size="small" color="#f59e0b" />

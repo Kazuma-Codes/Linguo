@@ -147,7 +147,7 @@ export function MessageBubble({
         <Text style={[styles.text, { color: bodyColor }]}>{primary}</Text>
         {!message.is_me && message.detected_lang && message.detected_lang !== myLang && !expanded && (
           <Text style={[styles.hint, { color: faintColor }]}>
-            ✨ Translated from {LANGUAGE_MAP[message.detected_lang] || message.detected_lang}
+            Translated from {LANGUAGE_MAP[message.detected_lang] || message.detected_lang}
           </Text>
         )}
         <View style={styles.footer}>
