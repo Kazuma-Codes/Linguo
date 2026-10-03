@@ -8,9 +8,9 @@
 frontend/
 ├── package.json, package-lock.json, next.config.mjs, tailwind.config.ts,
 │   tsconfig.json, postcss.config.mjs, .eslintrc.json, next-env.d.ts,
-│   .env.example, .env.local, README.md, public/auth-art.png
+│   .env.example, .env.local, README.md
 └── src/
-    ├── config.ts, types/global.d.ts
+    ├── config.ts
     ├── store/useAuthStore.ts, useChatStore.ts, useThemeStore.ts
     ├── lib/api.ts, languages.ts, avatarPresets.ts, icons.tsx
     ├── app/layout.tsx, page.tsx, chat/[roomId]/page.tsx, globals.css,
@@ -101,11 +101,6 @@ Flow: `config.ts → lib/api.ts → page.tsx / chat/[roomId]/page.tsx`; `config.
 **Purpose:** Central URL normalizer, single source of truth.
 **Key:** `API_BASE_URL` (ensures `/api/v1` suffix), `WS_BASE_URL` (trim trailing `/`).
 **Connects to:** `src/lib/api.ts` (`API_BASE_URL`), `src/store/useChatStore.ts` (`WS_BASE_URL`).
-
-### `src/types/global.d.ts`
-**Purpose:** CSS module shim for TS.
-**Key:** `declare module '*.css'`.
-**Connects to:** `src/app/layout.tsx` `import './globals.css'`.
 
 ---
 

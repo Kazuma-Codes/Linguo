@@ -11,18 +11,14 @@ app/
 ├── package.json, package-lock.json, app.json, tsconfig.json,
 │   eslint.config.js, expo-env.d.ts, .env.example, .gitignore,
 │   AGENTS.md, CLAUDE.md, README.md, LICENSE
-├── scripts/reset-project.js, android/ (CNG generated)
+├── android/ (CNG generated)
 ├── assets/images/*, assets/expo.icon/*
 └── src/
     ├── app/_layout.tsx, index.tsx (1111 lines hub), chat/[roomId].tsx
     ├── store/useAuthStore.ts, useChatStore.ts
     ├── lib/api.ts, config.ts, languages.ts
     ├── constants/theme.ts, global.css
-    ├── hooks/use-theme.ts, use-color-scheme.ts, use-color-scheme.web.ts
-    └── components/MessageBubble.tsx, DraftPreview.tsx, Footnotes.tsx,
-        themed-text.tsx, themed-view.tsx, external-link.tsx,
-        hint-row.tsx, web-badge.tsx, ui/collapsible.tsx,
-        animated-icon.module.css
+    └── components/MessageBubble.tsx, DraftPreview.tsx, Footnotes.tsx, Composer.tsx, ...
 ```
 
 Flow: `app.json(extra.apiUrl) + .env(EXPO_PUBLIC_API_URL) → lib/config → API_BASE_URL → lib/api → index.tsx + [roomId].tsx`; `WS_BASE_URL → store/useChatStore → [roomId].tsx → MessageBubble/DraftPreview → Footnotes`.
@@ -33,7 +29,7 @@ Flow: `app.json(extra.apiUrl) + .env(EXPO_PUBLIC_API_URL) → lib/config → API
 
 ### `app/package.json`
 **Purpose:** Expo app manifest.
-**Key:** `name:app, main:expo-router/entry`; deps `expo ~57.0.25, expo-router/auth-session/constants/crypto/device/font/glass-effect/image/image-picker/linking/secure-store/splash-screen/status-bar/symbols/system-ui/web-browser, @expo/ui/vector-icons, react 19.2.3, RN 0.86.3, reanimated 4.5.1, safe-area-context, zustand 5`; scripts `start/reset-project/android/ios/web/lint`.
+**Key:** `name:app, main:expo-router/entry`; deps `expo ~57.0.25, expo-router/auth-session/constants/font/glass-effect/image/image-picker/linking/secure-store/splash-screen/status-bar/system-ui/web-browser, @expo/ui/vector-icons, react 19.2.3, RN 0.86.3, safe-area-context, zustand 5`; scripts `start/android/ios/web/lint`.
 **Connects to:** All `src/*` via `expo start`; native modules need dev-build (see `AGENTS.md`).
 
 ### `app/package-lock.json`
@@ -79,9 +75,9 @@ Flow: `app.json(extra.apiUrl) + .env(EXPO_PUBLIC_API_URL) → lib/config → API
 **Key:** `@AGENTS.md`.
 **Connects to:** AI assistant entry.
 
-### `app/README.md` (56 lines)
+### `app/README.md` (49 lines)
 **Purpose:** Default `create-expo-app` readme (not Mosaic-specific).
-**Key:** Install/start/reset-project/lint/test links.
+**Key:** Install/start/lint/test links.
 **Connects to:** None specific.
 
 ### `app/LICENSE`
@@ -165,63 +161,14 @@ Flow: `app.json(extra.apiUrl) + .env(EXPO_PUBLIC_API_URL) → lib/config → API
 **Key:** `Footnotes({footnotes?:FN|null}) → null` if empty.
 **Connects to:** `MessageBubble`, `DraftPreview`.
 
-### `src/components/themed-text.tsx` (73 lines, template, unused by chat screens)
-**Purpose:** Themed text variants.
-**Key:** `type ThemedTextProps{type:default|title|small|smallBold|subtitle|link|linkPrimary|code,themeColor?}`, `ThemedText`.
-**Connects to:** `@/constants/theme(Fonts)`, `@/hooks/use-theme`.
-
-### `src/components/themed-view.tsx` (16 lines, template)
-**Purpose:** Themed container.
-**Key:** `type ThemedViewProps{lightColor?,darkColor?,type?:ThemeColor}`, `ThemedView` (uses `theme[type??'background']`).
-**Connects to:** `@/hooks/use-theme`.
-
-### `src/components/external-link.tsx` (25 lines, template)
-**Purpose:** Cross-platform external link.
-**Key:** `ExternalLink({href,...})` — native `openBrowserAsync(AUTOMATIC)`, web default `<Link target=_blank>`.
-**Connects to:** `expo-web-browser`, `expo-router`.
-
-### `src/components/hint-row.tsx` (35 lines, template)
-**Purpose:** Dev hint row.
-**Key:** `HintRow({title='Try editing',hint='app/index.tsx'})` using `ThemedText/View` + `Spacing`.
-**Connects to:** Template only.
-
-### `src/components/web-badge.tsx` (43 lines, template, broken path note)
-**Purpose:** Expo version badge for web.
-**Key:** `WebBadge()` shows expo version + `expo-badge[-white].png`. Note: requires `@/assets/...` but alias maps to `./src/*`; assets live at `./assets/` — needs `@/assets` mapping or `../../assets`.
-**Connects to:** Template only.
-
-### `src/components/ui/collapsible.tsx` (65 lines, template)
-**Purpose:** Animated collapsible section.
-**Key:** `Collapsible({children,title})` — `Pressable` + `expo-symbols SymbolView` chevron + `reanimated FadeIn`, uses `useTheme`, `Spacing`.
-**Connects to:** Template only.
-
-### `src/components/animated-icon.module.css` (6 lines)
-**Purpose:** Web-only `.expoLogoBackground` gradient (128px, 40px radius). Unreferenced by current screens.
-**Connects to:** None (dead CSS).
-
 ---
 
-## 6. `src/constants/`, `src/hooks/`, `src/global.css`
+## 6. `src/constants/`, `src/global.css`
 
-### `src/constants/theme.ts` (82 lines)
+### `src/constants/theme.ts` (47 lines)
 **Purpose:** Single theme source (mirrors web `globals.css` vars).
-**Key:** `Colors{light,dark}` (primary `#6C5CE7/#7C6EF7`, `primarySoft, text/background/backgroundElement/backgroundSelected/textSecondary/card/border/accent` + `chatBg/chatCard/bubbleMe/bubbleMeText/bubbleOther/bubbleOtherText` mirroring web), `type ThemeColor`, `Fonts (ios/default/web)`, `Spacing{half:2…six:64}`, `BottomTabInset`, `MaxContentWidth:800`. Imports `@/global.css` (side-effect).
+**Key:** `Colors{light,dark}` (primary `#6C5CE7/#7C6EF7`, `primarySoft, text/background/backgroundElement/backgroundSelected/textSecondary/card/border/accent` + `chatBg/chatCard/bubbleMe/bubbleMeText/bubbleOther/bubbleOtherText` mirroring web). Imports `@/global.css` (side-effect).
 **Connects to:** All screens/components via `makeStyles(c)` / `useTheme`.
-
-### `src/hooks/use-theme.ts` (14 lines)
-**Purpose:** Theme selector.
-**Key:** `useTheme() → Colors[scheme==='unspecified'?'light':scheme]`.
-**Connects to:** Template components (`themed-*, collapsible`).
-
-### `src/hooks/use-color-scheme.ts` (1 line)
-**Purpose:** Native color-scheme passthrough.
-**Key:** Re-export `useColorScheme` from `react-native`.
-**Connects to:** `use-theme.ts` (native).
-
-### `src/hooks/use-color-scheme.web.ts` (21 lines)
-**Purpose:** Web SSR-safe wrapper.
-**Key:** Returns `'light'` until hydrated, then RN value. Expo file-convention picks `.web` on web.
-**Connects to:** `use-theme.ts` (web).
 
 ### `src/global.css` (9 lines)
 **Purpose:** Font vars only.
@@ -230,12 +177,7 @@ Flow: `app.json(extra.apiUrl) + .env(EXPO_PUBLIC_API_URL) → lib/config → API
 
 ---
 
-## 7. `scripts/`, `android/`, `assets/`
-
-### `app/scripts/reset-project.js` (114 lines)
-**Purpose:** Interactive starter reset — moves/deletes `src,scripts` to `example/` and scaffolds blank `src/app/index+_layout`. **Destructive — do not run in this repo.**
-**Key:** `node ./scripts/reset-project.js`.
-**Connects to:** Template scaffolding only.
+## 7. `android/`, `assets/`
 
 ### `app/android/` (CNG generated)
 **Purpose:** Native Android project generated by `npx expo prebuild` (Continuous Native Generation). Do not hand-edit; edit `app.json` instead.
@@ -290,7 +232,7 @@ app.json(extra.apiUrl) + .env(EXPO_PUBLIC_API_URL) → lib/config → API_BASE_U
                                                               ↘ WS_BASE_URL → store/useChatStore → [roomId].tsx → MessageBubble/DraftPreview → Footnotes
 lib/languages → index.tsx(chips) + [roomId].tsx(subtitle/placeholder) + MessageBubble(translated-from)
 store/useAuthStore → _layout(hydrate/splash) + index(auth/tabs/profile) + [roomId](myLang/myEmail/token)
-constants/theme → every screen/component styling; hooks/use-theme → themed-*/collapsible
+constants/theme → every screen/component styling (Colors + makeStyles)
 ```
 
 ---
