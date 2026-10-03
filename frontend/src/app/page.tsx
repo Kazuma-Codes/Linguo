@@ -93,6 +93,7 @@ export default function HomePage() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [expandedBubbleIds, setExpandedBubbleIds] = useState<Set<string>>(new Set());
@@ -1168,6 +1169,15 @@ export default function HomePage() {
         chatsCount={rooms.length}
         contactsCount={contacts.length}
         groupsCount={rooms.filter((r) => r.room_type === 'group').length}
+      />
+      
+      <LogoutConfirmModal
+          isOpen={showLeaveConfirm}
+          onClose={() => setShowLeaveConfirm(false)}
+          onConfirm={handleConfirmLeave}
+          title="Leave this group?"
+          description="You will be removed from the room. A member can invite you back later."
+          confirmLabel="Leave"
       />
 
       {/* Search Overlay (Ctrl+K) */}
